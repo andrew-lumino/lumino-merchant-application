@@ -3,15 +3,80 @@ import { Resend } from "resend"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+// Function to send Zapier webhook with proper error handling
+async function sendZapierWebhook(status: string, agentEmail: string, merchantEmail: string) {
+  try {
+    const webhookData = {
+      status,
+      agent_email: agentEmail,
+      merchant_email: merchantEmail,
+      timestamp: new Date().toISOString(),
+    }
+    
+    console.log("📤 Sending Zapier webhook:", webhookData)
+    
+    const response = await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(webhookData),
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("❌ Zapier webhook failed:", response.status, errorText)
+      throw new Error(`Zapier webhook failed: ${response.status} ${errorText}`)
+    } else {
+      const responseText = await response.text()
+      console.log("✅ Zapier webhook sent successfully:", responseText)
+    }
+  } catch (error) {
+    console.error("❌ Zapier webhook error:", error)
+    throw error // Re-throw to let caller know it failed
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { emails, inviteId, agent_email } = await req.json()
+    
+    console.log("📨 Sending merchant invite:", { emails, inviteId, agent_email })
+
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      console.error("❌ No emails provided")
+      return NextResponse.json(
+        { success: false, error: "No emails provided" },
+        { status: 400 }
+      )
+    }
+
+    if (!inviteId) {
+      console.error("❌ No invite ID provided")
+      return NextResponse.json(
+        { success: false, error: "No invite ID provided" },
+        { status: 400 }
+      )
+    }
+
+    if (!agent_email) {
+      console.error("❌ No agent email provided")
+      return NextResponse.json(
+        { success: false, error: "No agent email provided" },
+        { status: 400 }
+      )
+    }
 
     const baseUrl = "https://apply.golumino.com"
     const inviteLink = `${baseUrl}?id=${inviteId}`
 
-    const emailPromises = emails.map((email: string) =>
-      resend.emails.send({
+    console.log("🔗 Generated invite link:", inviteLink)
+
+    // Send emails to all recipients
+    const emailPromises = emails.map((email: string) => {
+      console.log(`📧 Sending email to: ${email}`)
+      return resend.emails.send({
         from: "Lumino <no-reply@golumino.com>",
         to: ["apps@golumino.com", email],
         subject: "You're Invited to Apply for Lumino Merchant Services",
@@ -56,29 +121,51 @@ export async function POST(req: Request) {
             </div>
           </div>
         `,
-      }),
-    )
-
-    await Promise.all(emailPromises)
-
-    try {
-      await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "merchant_application_sent",
-          agent_email: agent_email,
-          merchant_email: emails.join(", "), // Join multiple emails if any
-        }),
       })
-      console.log("✅ Zapier webhook sent for sent status")
-    } catch (zapierError) {
-      console.error("⚠️ Zapier webhook failed (non-blocking):", zapierError)
+    })
+
+    // Wait for all emails to be sent
+    const emailResults = await Promise.allSettled(emailPromises)
+    
+    // Check if any emails failed
+    const failedEmails = emailResults
+      .map((result, index) => ({ result, email: emails[index] }))
+      .filter(({ result }) => result.status === 'rejected')
+
+    if (failedEmails.length > 0) {
+      console.error("❌ Some emails failed to send:", failedEmails)
+      // Log the errors but continue with webhook
+      failedEmails.forEach(({ result, email }) => {
+        if (result.status === 'rejected') {
+          console.error(`Failed to send to ${email}:`, result.reason)
+        }
+      })
     }
 
-    return NextResponse.json({ success: true, message: "Invite sent successfully!" })
+    console.log(`✅ Sent ${emails.length - failedEmails.length}/${emails.length} emails successfully`)
+
+    // Send Zapier webhook for each email (or combined)
+    const webhookPromises = emails.map(email => 
+      sendZapierWebhook("merchant_application_sent", agent_email, email)
+    )
+    
+    try {
+      await Promise.all(webhookPromises)
+      console.log("✅ All Zapier webhooks sent successfully")
+    } catch (webhookError) {
+      console.error("⚠️ Some Zapier webhooks failed (non-blocking):", webhookError)
+      // Don't fail the main request if webhooks fail
+    }
+
+    // Return success even if some webhooks failed (emails are the main concern)
+    return NextResponse.json({ 
+      success: true, 
+      message: `Invite sent successfully to ${emails.length - failedEmails.length}/${emails.length} recipients!`,
+      failedEmails: failedEmails.length > 0 ? failedEmails.map(f => f.email) : undefined
+    })
+
   } catch (error) {
-    console.error("Error sending invite:", error)
+    console.error("💥 Error in send-merchant-invite:", error)
     return NextResponse.json(
       {
         success: false,
