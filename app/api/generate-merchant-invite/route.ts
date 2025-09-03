@@ -56,14 +56,22 @@ export async function POST(req: Request) {
 
     if (initialStatus === "draft") {
       try {
+        const zapierData: any = {
+          status: "merchant_application_draft",
+          agent_email: agent_email,
+        }
+
+        // Only include merchant_email if it exists
+        if (merchant_email) {
+          zapierData.merchant_email = merchant_email
+        }
+
+        console.log("Sending to Zapier:", zapierData)
+
         await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: "merchant_application_draft",
-            agent_email: agent_email,
-            merchant_email: merchant_email || null,
-          }),
+          body: JSON.stringify(zapierData),
         })
         console.log("✅ Zapier webhook sent for draft status")
       } catch (zapierError) {
