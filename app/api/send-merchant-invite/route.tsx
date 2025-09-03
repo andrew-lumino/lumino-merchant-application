@@ -146,7 +146,7 @@ export async function POST(req: Request) {
 
     // Send Zapier webhook for each email (or combined)
     const webhookPromises = emails.map(email => 
-      sendZapierWebhook("merchant_application_sent", agent_email, email)
+      sendZapierWebhook("merchant_application_draft", agent_email, email)
     )
     
     try {
