@@ -11,42 +11,37 @@ export async function POST(req: Request) {
 
     // Validate inputs
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "No valid emails provided" },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: "No valid emails provided" }, { status: 400 })
     }
 
     // Improved email validation regex
-    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
-    
+    const emailRegex =
+      /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+
     // Better email parsing and validation
     const validEmails = emails
-      .flatMap(email => {
+      .flatMap((email) => {
         // Handle cases where emails might be passed as a single string with delimiters
-        if (typeof email === 'string' && (email.includes(',') || email.includes(';'))) {
-          return email.split(/[,;\n]/).map(e => e.trim())
+        if (typeof email === "string" && (email.includes(",") || email.includes(";"))) {
+          return email.split(/[,;\n]/).map((e) => e.trim())
         }
         return [email]
       })
-      .map(email => typeof email === 'string' ? email.trim().toLowerCase() : '')
-      .filter(email => email && emailRegex.test(email))
-    
+      .map((email) => (typeof email === "string" ? email.trim().toLowerCase() : ""))
+      .filter((email) => email && emailRegex.test(email))
+
     // Remove duplicates
     const uniqueEmails = Array.from(new Set(validEmails))
-    
+
     if (uniqueEmails.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "No valid email addresses found" },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: "No valid email addresses found" }, { status: 400 })
     }
 
     const baseUrl = "https://apply.golumino.com"
     const results = {
       successful: [] as string[],
-      failed: [] as { email: string, error: string }[],
-      skipped: [] as string[]
+      failed: [] as { email: string; error: string }[],
+      skipped: [] as string[],
     }
 
     // Check for existing invites to avoid duplicates
@@ -56,21 +51,21 @@ export async function POST(req: Request) {
       .in("dba_email", uniqueEmails)
       .eq("status", "invited")
 
-    const existingEmails = new Set(existingInvites?.map(inv => inv.dba_email) || [])
-    
+    const existingEmails = new Set(existingInvites?.map((inv) => inv.dba_email) || [])
+
     // Separate new emails from existing ones
-    const newEmails = uniqueEmails.filter(email => !existingEmails.has(email))
-    const skippedEmails = uniqueEmails.filter(email => existingEmails.has(email))
-    
+    const newEmails = uniqueEmails.filter((email) => !existingEmails.has(email))
+    const skippedEmails = uniqueEmails.filter((email) => existingEmails.has(email))
+
     results.skipped = skippedEmails
 
     // Process new emails with rate limiting (to avoid overwhelming email service)
     const batchSize = 10 // Process 10 at a time
     const delay = 100 // 100ms between batches
-    
+
     for (let i = 0; i < newEmails.length; i += batchSize) {
       const batch = newEmails.slice(i, i + batchSize)
-      
+
       const batchPromises = batch.map(async (email: string) => {
         try {
           // Create invite record
@@ -92,10 +87,24 @@ export async function POST(req: Request) {
           // Send email with retry logic
           await sendEmailWithRetry(email, inviteLink, 3)
 
+          try {
+            await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                status: "merchant_application_sent",
+                agent_email: agent_email,
+                merchant_email: email,
+              }),
+            })
+          } catch (zapierError) {
+            console.error("⚠️ Zapier webhook failed (non-blocking):", zapierError)
+          }
+
           results.successful.push(email)
           return { success: true, email, id: data.id }
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          const errorMessage = error instanceof Error ? error.message : "Unknown error"
           results.failed.push({ email, error: errorMessage })
           console.error(`Failed to process ${email}:`, error)
           return { success: false, email, error: errorMessage }
@@ -103,10 +112,10 @@ export async function POST(req: Request) {
       })
 
       await Promise.all(batchPromises)
-      
+
       // Add delay between batches to avoid rate limits
       if (i + batchSize < newEmails.length) {
-        await new Promise(resolve => setTimeout(resolve, delay))
+        await new Promise((resolve) => setTimeout(resolve, delay))
       }
     }
 
@@ -128,8 +137,8 @@ export async function POST(req: Request) {
         failed: results.failed.length,
         skipped: results.skipped.length,
         failedEmails: results.failed,
-        skippedEmails: results.skipped
-      }
+        skippedEmails: results.skipped,
+      },
     })
   } catch (error) {
     console.error("Error sending multiple invites:", error)
@@ -139,7 +148,7 @@ export async function POST(req: Request) {
         error: "Failed to send invites",
         message: error instanceof Error ? error.message : "Unknown error occurred",
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -157,13 +166,13 @@ async function sendEmailWithRetry(email: string, inviteLink: string, maxRetries:
       return // Success, exit retry loop
     } catch (error) {
       console.error(`Attempt ${attempt} failed for ${email}:`, error)
-      
+
       if (attempt === maxRetries) {
         throw error // Final attempt failed, throw error
       }
-      
+
       // Wait before retrying (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, attempt * 1000))
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000))
     }
   }
 }

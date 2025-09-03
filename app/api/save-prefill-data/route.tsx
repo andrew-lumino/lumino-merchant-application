@@ -247,6 +247,21 @@ export async function POST(request: Request) {
     if (action === "send" && merchantEmail) {
       console.log("📧 Sending email to:", merchantEmail)
 
+      try {
+        await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "merchant_application_sent",
+            agent_email: agentEmail,
+            merchant_email: merchantEmail,
+          }),
+        })
+        console.log("✅ Zapier webhook sent for sent status")
+      } catch (zapierError) {
+        console.error("⚠️ Zapier webhook failed (non-blocking):", zapierError)
+      }
+
       const terminals = dbData.terminals
       const terminalInfoHtml =
         terminals && terminals.length > 0

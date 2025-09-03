@@ -54,6 +54,23 @@ export async function POST(req: Request) {
     console.log("Created application data:", data)
     console.log(`Application ID: ${data.id} with status: ${initialStatus}`)
 
+    if (initialStatus === "draft") {
+      try {
+        await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "merchant_application_draft",
+            agent_email: agent_email,
+            merchant_email: merchant_email || null,
+          }),
+        })
+        console.log("✅ Zapier webhook sent for draft status")
+      } catch (zapierError) {
+        console.error("⚠️ Zapier webhook failed (non-blocking):", zapierError)
+      }
+    }
+
     try {
       await fetch(`${req.url.replace("/generate-merchant-invite", "/sync-airtable")}`, {
         method: "POST",

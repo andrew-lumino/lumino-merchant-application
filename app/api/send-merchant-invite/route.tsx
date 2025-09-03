@@ -61,6 +61,21 @@ export async function POST(req: Request) {
 
     await Promise.all(emailPromises)
 
+    try {
+      await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "merchant_application_sent",
+          agent_email: agent_email,
+          merchant_email: emails.join(", "), // Join multiple emails if any
+        }),
+      })
+      console.log("✅ Zapier webhook sent for sent status")
+    } catch (zapierError) {
+      console.error("⚠️ Zapier webhook failed (non-blocking):", zapierError)
+    }
+
     return NextResponse.json({ success: true, message: "Invite sent successfully!" })
   } catch (error) {
     console.error("Error sending invite:", error)
