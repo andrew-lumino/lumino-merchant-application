@@ -3,6 +3,40 @@ import { createClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
 import { currentUser } from "@clerk/nextjs/server"
 
+async function sendZapierWebhook(status: string, agentEmail: string, merchantEmail: string) {
+  try {
+    const webhookData = {
+      status,
+      agent_email: agentEmail,
+      merchant_email: merchantEmail,
+      timestamp: new Date().toISOString(),
+    }
+    
+    console.log("📤 Sending Zapier webhook:", webhookData)
+    
+    const response = await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(webhookData),
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("❌ Zapier webhook failed:", response.status, errorText)
+      throw new Error(`Zapier webhook failed: ${response.status} ${errorText}`)
+    } else {
+      const responseText = await response.text()
+      console.log("✅ Zapier webhook sent successfully:", responseText)
+    }
+  } catch (error) {
+    console.error("❌ Zapier webhook error:", error)
+    throw error
+  }
+}
+
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -243,24 +277,19 @@ export async function POST(request: Request) {
       // Don't fail the main request if Airtable sync fails
     }
 
+    // Send Zapier webhook for all actions (both prefill and send)
+    try {
+      const webhookStatus = action === "send" ? "merchant_application_sent" : "merchant_application_prefilled"
+      await sendZapierWebhook(webhookStatus, agentEmail, merchantEmail || "")
+      console.log("✅ Zapier webhook completed")
+    } catch (zapierError) {
+      console.error("⚠️ Zapier webhook failed (non-blocking):", zapierError)
+      // Don't fail the main request if Zapier webhook fails
+    }
+
     // If the action is to send an email, send it
     if (action === "send" && merchantEmail) {
       console.log("📧 Sending email to:", merchantEmail)
-
-      try {
-        await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: "merchant_application_sent",
-            agent_email: agentEmail,
-            merchant_email: merchantEmail,
-          }),
-        })
-        console.log("✅ Zapier webhook sent for sent status")
-      } catch (zapierError) {
-        console.error("⚠️ Zapier webhook failed (non-blocking):", zapierError)
-      }
 
       const terminals = dbData.terminals
       const terminalInfoHtml =
