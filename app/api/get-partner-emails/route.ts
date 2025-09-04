@@ -5,15 +5,22 @@ import Airtable from "airtable"
 interface PartnerFields {
   "Primary Email"?: unknown
 }
+
+interface AgentFields {
+  "Agent Email"?: unknown
+}
+
 interface SimpleRecord {
   id: string
-  fields: PartnerFields
+  fields: PartnerFields | AgentFields
 }
 
 // --- Airtable setup ---
 const AIRTABLE_BASE_ID = "appRygdwVIEtbUI1C"
 const PARTNERS_TABLE_ID = "tbl4Ea0fxLzlGpuUd"
 const PARTNERS_VIEW_ID = "viwEKsYrUYm5nlPxQ"
+const AGENTS_TABLE_ID = "tblAzASni7ZaXGo0Y"
+const AGENTS_VIEW_ID = "viwcEA7SOPyLl6Ype"
 
 const base = new Airtable({
   apiKey: process.env.AIRTABLE_API_KEY,
@@ -27,27 +34,42 @@ function toEmail(value: unknown): string | null {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : null
 }
 
-export async function GET(request: NextRequest) {
+async function fetchEmailsFromTable(
+  tableId: string, 
+  viewId: string, 
+  emailField: string
+): Promise<string[]> {
   const records: SimpleRecord[] = []
 
+  await base(tableId)
+    .select({
+      view: viewId,
+      fields: [emailField],
+    })
+    .eachPage((page, next) => {
+      // Cast to a simplified shape we control
+      for (const r of page as unknown as SimpleRecord[]) records.push(r)
+      next()
+    })
+
+  // Extract and normalize emails from this table
+  return records
+    .map((r) => toEmail((r.fields as any)[emailField]))
+    .filter((e): e is string => Boolean(e))
+}
+
+export async function GET(request: NextRequest) {
   try {
-    await base(PARTNERS_TABLE_ID)
-      .select({
-        view: PARTNERS_VIEW_ID,
-        fields: ["Primary Email"],
-      })
-      .eachPage((page, next) => {
-        // Cast to a simplified shape we control
-        for (const r of page as unknown as SimpleRecord[]) records.push(r)
-        next()
-      })
+    // Fetch emails from both tables in parallel
+    const [partnerEmails, agentEmails] = await Promise.all([
+      fetchEmailsFromTable(PARTNERS_TABLE_ID, PARTNERS_VIEW_ID, "Primary Email"),
+      fetchEmailsFromTable(AGENTS_TABLE_ID, AGENTS_VIEW_ID, "Agent Email")
+    ])
 
-    // Collect, normalize, and dedupe emails
-    const emails = Array.from(
-      new Set(records.map((r) => toEmail(r.fields["Primary Email"])).filter((e): e is string => Boolean(e))),
-    )
+    // Combine and dedupe all emails
+    const allEmails = Array.from(new Set([...partnerEmails, ...agentEmails]))
 
-    return NextResponse.json({ success: true, emails })
+    return NextResponse.json({ success: true, emails: allEmails })
   } catch (err) {
     console.error("Error fetching partner emails from Airtable:", err)
     return NextResponse.json(
