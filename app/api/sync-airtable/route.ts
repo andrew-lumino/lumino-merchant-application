@@ -1,3 +1,4 @@
+// api/aync-airtable
 import { NextResponse } from "next/server"
 
 const AIRTABLE_BASE_ID = "appRygdwVIEtbUI1C"
@@ -223,7 +224,7 @@ function mapToAirtableFields(
 
 async function findExistingRecord(applicationId: string): Promise<string | null> {
   try {
-    const response = await fetch(`${AIRTABLE_API_URL}?filterByFormula={Application ID}="${applicationId}"`, {
+    const response = await fetch(`${AIRTABLE_API_URL}?filterByFormula={Application Comments}="${applicationId}"`, {
       headers: {
         Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
         "Content-Type": "application/json",

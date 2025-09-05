@@ -1,3 +1,4 @@
+// api/save-prefill-data
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
@@ -258,24 +259,24 @@ export async function POST(request: Request) {
     const inviteLink = `https://apply.golumino.com/?id=${applicationId}`
     console.log("🔗 Generated invite link:", inviteLink)
 
-    try {
-      const baseUrl = new URL(request.url).origin
-      await fetch(`${baseUrl}/api/sync-airtable`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicationId,
-          action: action === "send" ? "invite_sent" : "prefill_saved",
-          data: updateData,
-          agentEmail,
-          merchantEmail,
-        }),
-      })
-      console.log("✅ Airtable sync completed")
-    } catch (airtableError) {
-      console.error("⚠️ Airtable sync failed (non-blocking):", airtableError)
-      // Don't fail the main request if Airtable sync fails
-    }
+    // try {
+    //   const baseUrl = new URL(request.url).origin
+    //   await fetch(`${baseUrl}/api/sync-airtable`, {
+    //     method: "POST",
+    //     headers: { "Content-Type": "application/json" },
+    //     body: JSON.stringify({
+    //       applicationId,
+    //       action: action === "send" ? "invite_sent" : "prefill_saved",
+    //       data: updateData,
+    //       agentEmail,
+    //       merchantEmail,
+    //     }),
+    //   })
+    //   console.log("✅ Airtable sync completed")
+    // } catch (airtableError) {
+    //   console.error("⚠️ Airtable sync failed (non-blocking):", airtableError)
+    //   // Don't fail the main request if Airtable sync fails
+    // }
 
     // Send Zapier webhook for all actions (both prefill and send)
     try {
