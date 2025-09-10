@@ -168,7 +168,7 @@ function buildZapAirtableFields(params: {
     })
     .join("\n")
 
-  // Uploads mapping (keep exact em dash if that’s what Airtable uses)
+  // Uploads mapping (keep exact em dash if that's what Airtable uses)
   const uploadMap: Record<string, string> = {
     businessLicense: "Uploads — Business License",
     taxId: "Uploads — Tax Id",
@@ -293,7 +293,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    console.log("API route called")
+    console.log("=== SUBMIT MERCHANT APPLICATION API CALLED ===")
 
     // Check environment variables first
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -315,143 +315,186 @@ export async function POST(request: Request) {
 
     const data = JSON.parse(jsonDataString)
     console.log("JSON data parsed successfully")
+    console.log("Application ID from data:", data.id)
+    console.log("Uploads from data:", data.uploads)
 
-    // Handle file uploads first (to get URLs for database)
+    // FIXED: Process uploaded files from the JSON data structure
     const uploadedFiles: Record<string, string> = {}
 
-    // Process each file upload
-    for (const [key, value] of formData.entries()) {
-      if (key.startsWith("file_") && value instanceof File) {
-        const uploadKey = key.replace("file_", "")
-        console.log(`Processing file upload for ${uploadKey}`)
-
-        try {
-          // Upload to Supabase Storage
-          const fileName = `${data.dbaEmail?.replace(/[@.]/g, "_") || "unknown"}/${Date.now()}_${uploadKey}_${value.name}`
-          const { error: uploadError } = await supabase.storage.from("merchant-uploads").upload(fileName, value)
-
-          if (uploadError) {
-            console.error(`Upload error for ${uploadKey}:`, uploadError)
-            // Continue with other files even if one fails
-            continue
-          }
-
-          // Get public URL
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from("merchant-uploads").getPublicUrl(fileName)
-
-          uploadedFiles[uploadKey] = publicUrl
-          console.log(`File uploaded successfully: ${uploadKey} -> ${publicUrl}`)
-        } catch (error) {
-          console.error(`Failed to upload file ${uploadKey}:`, error)
-          // Continue with other files even if one fails
+    // Process uploads from the JSON data (URLs from earlier Supabase uploads)
+    if (data.uploads) {
+      Object.entries(data.uploads).forEach(([key, upload]: [string, any]) => {
+        if (upload?.uploadType === "file" && upload.url) {
+          uploadedFiles[key] = upload.url
+          console.log(`✅ Found file upload: ${key} -> ${upload.url}`)
+        } else if (upload?.uploadType === "url" && upload.url) {
+          uploadedFiles[key] = upload.url
+          console.log(`✅ Found URL upload: ${key} -> ${upload.url}`)
         }
-      }
+      })
     }
 
-    console.log("File uploads completed, inserting into database...")
+    console.log("Processed uploaded files:", uploadedFiles)
 
-    // Insert into merchant_applications table
-    const { data: application, error: applicationError } = await supabase
-      .from("merchant_applications")
-      .insert({
-        agent_email: data.agentEmail || null,
-        status: "submitted",
+    // FIXED: Handle database operation - UPDATE existing or INSERT new
+    let application
+    let applicationError
 
-        // Merchant Information
-        dba_name: data.dbaName || null,
-        dba_email: data.dbaEmail || null,
-        ownership_type: data.ownershipType || null,
-        legal_name: data.legalName || null,
-        federal_tax_id: data.federalTaxId || null,
-        dba_phone: data.dbaPhone || null,
-        website_url: data.websiteUrl || null,
-        paperless_statements: data.paperlessStatements || false,
+    const updateData = {
+      status: "submitted",
 
-        // DBA Address
-        dba_address_line1: data.dbaAddressLine1 || null,
-        dba_address_line2: data.dbaAddressLine2 || null,
-        dba_city: data.dbaCity || null,
-        dba_state: data.dbaState || null,
-        dba_zip: data.dbaZip || null,
-        dba_zip_extended: data.dbaZipExtended || null,
+      // Merchant Information
+      dba_name: data.dbaName || null,
+      dba_email: data.dbaEmail || null,
+      ownership_type: data.ownershipType || null,
+      legal_name: data.legalName || null,
+      federal_tax_id: data.federalTaxId || null,
+      dba_phone: data.dbaPhone || null,
+      website_url: data.websiteUrl || null,
+      paperless_statements: data.paperlessStatements || false,
 
-        // Legal Address
-        legal_differs: data.legalDiffers || false,
-        legal_address_line1: data.legalAddressLine1 || null,
-        legal_address_line2: data.legalAddressLine2 || null,
-        legal_city: data.legalCity || null,
-        legal_state: data.legalState || null,
-        legal_zip: data.legalZip || null,
-        legal_zip_extended: data.legalZipExtended || null,
+      // DBA Address
+      dba_address_line1: data.dbaAddressLine1 || null,
+      dba_address_line2: data.dbaAddressLine2 || null,
+      dba_city: data.dbaCity || null,
+      dba_state: data.dbaState || null,
+      dba_zip: data.dbaZip || null,
+      dba_zip_extended: data.dbaZipExtended || null,
 
-        // Merchant Profile
-        monthly_volume: Number.parseFloat(data.monthlyVolume) || 0,
-        average_ticket: Number.parseFloat(data.averageTicket) || 0,
-        highest_ticket: Number.parseFloat(data.highestTicket) || 0,
-        pct_card_swiped: Number.parseFloat(data.pctCardSwiped) || 0,
-        pct_manual_imprint: Number.parseFloat(data.pctManualImprint) || 0,
-        pct_manual_no_imprint: Number.parseFloat(data.pctManualNoImprint) || 0,
-        business_type: data.businessType || null,
-        refund_policy: data.refundPolicy || null,
-        previous_processor: data.previousProcessor || null,
-        reason_for_termination: data.reasonForTermination || null,
-        seasonal_business: data.seasonalBusiness || false,
-        seasonal_months: data.seasonalMonths || [],
-        uses_fulfillment_house: data.usesFulfillmentHouse || false,
-        uses_third_parties: data.usesThirdParties || false,
-        third_parties_list: data.thirdPartiesList || null,
-        terminals: data.terminals || [],
+      // Legal Address
+      legal_differs: data.legalDiffers || false,
+      legal_address_line1: data.legalAddressLine1 || null,
+      legal_address_line2: data.legalAddressLine2 || null,
+      legal_city: data.legalCity || null,
+      legal_state: data.legalState || null,
+      legal_zip: data.legalZip || null,
+      legal_zip_extended: data.legalZipExtended || null,
 
-        // Principals
-        principals: data.principals || [],
+      // Merchant Profile
+      monthly_volume: Number.parseFloat(data.monthlyVolume) || 0,
+      average_ticket: Number.parseFloat(data.averageTicket) || 0,
+      highest_ticket: Number.parseFloat(data.highestTicket) || 0,
+      pct_card_swiped: Number.parseFloat(data.pctCardSwiped) || 0,
+      pct_manual_imprint: Number.parseFloat(data.pctManualImprint) || 0,
+      pct_manual_no_imprint: Number.parseFloat(data.pctManualNoImprint) || 0,
+      business_type: data.businessType || null,
+      refund_policy: data.refundPolicy || null,
+      previous_processor: data.previousProcessor || null,
+      reason_for_termination: data.reasonForTermination || null,
+      seasonal_business: data.seasonalBusiness || false,
+      seasonal_months: data.seasonalMonths || [],
+      uses_fulfillment_house: data.usesFulfillmentHouse || false,
+      uses_third_parties: data.usesThirdParties || false,
+      third_parties_list: data.thirdPartiesList || null,
+      terminals: data.terminals || [],
 
-        // Managing Member
-        managing_member_same_as: data.managingMemberSameAs || false,
-        managing_member_reference: data.managingMemberReference || null,
-        managing_member_first_name: data.managingMemberFirstName || null,
-        managing_member_last_name: data.managingMemberLastName || null,
-        managing_member_email: data.managingMemberEmail || null,
-        managing_member_phone: data.managingMemberPhone || null,
-        managing_member_position: data.managingMemberPosition || null,
+      // Principals
+      principals: data.principals || [],
 
-        // Authorized Contact
-        authorized_contact_same_as: data.authorizedContactSameAs || false,
-        authorized_contact_name: data.authorizedContactName || null,
-        authorized_contact_email: data.authorizedContactEmail || null,
-        authorized_contact_phone: data.authorizedContactPhone || null,
+      // Managing Member
+      managing_member_same_as: data.managingMemberSameAs || false,
+      managing_member_reference: data.managingMemberReference || null,
+      managing_member_first_name: data.managingMemberFirstName || null,
+      managing_member_last_name: data.managingMemberLastName || null,
+      managing_member_email: data.managingMemberEmail || null,
+      managing_member_phone: data.managingMemberPhone || null,
+      managing_member_position: data.managingMemberPosition || null,
 
-        // Banking
-        bank_name: data.bankName || null,
-        routing_number: data.routingNumber || null,
-        account_number: data.accountNumber || null,
+      // Authorized Contact
+      authorized_contact_same_as: data.authorizedContactSameAs || false,
+      authorized_contact_name: data.authorizedContactName || null,
+      authorized_contact_email: data.authorizedContactEmail || null,
+      authorized_contact_phone: data.authorizedContactPhone || null,
 
-        // Batching
-        batch_time: data.batchTime || "10:45 PM EST",
+      // Banking
+      bank_name: data.bankName || null,
+      routing_number: data.routingNumber || null,
+      account_number: data.accountNumber || null,
 
-        // Technical Contact
-        technical_contact_same_as: data.technicalContactSameAs || false,
-        technical_contact_name: data.technicalContactName || null,
-        technical_contact_email: data.technicalContactEmail || null,
-        technical_contact_phone: data.technicalContactPhone || null,
+      // Batching
+      batch_time: data.batchTime || "10:45 PM EST",
 
-        // Signature
-        agreement_scrolled: data.agreementScrolled || false,
-        signature_full_name: data.signatureFullName || null,
-        signature_date: data.signatureDate || null,
-        certification_ack: data.certificationAck || false,
-      })
-      .select()
-      .single()
+      // Technical Contact
+      technical_contact_same_as: data.technicalContactSameAs || false,
+      technical_contact_name: data.technicalContactName || null,
+      technical_contact_email: data.technicalContactEmail || null,
+      technical_contact_phone: data.technicalContactPhone || null,
+
+      // Signature
+      agreement_scrolled: data.agreementScrolled || false,
+      signature_full_name: data.signatureFullName || null,
+      signature_date: data.signatureDate || null,
+      certification_ack: data.certificationAck || false,
+
+      updated_at: new Date().toISOString(),
+    }
+
+    if (data.id) {
+      // Update existing application
+      console.log("🔄 Updating existing application:", data.id)
+      const { data: updatedApp, error: updateError } = await supabase
+        .from("merchant_applications")
+        .update(updateData)
+        .eq("id", data.id)
+        .select()
+        .single()
+
+      application = updatedApp
+      applicationError = updateError
+    } else {
+      // Create new application (fallback case)
+      console.log("➕ Creating new application")
+      const { data: newApp, error: insertError } = await supabase
+        .from("merchant_applications")
+        .insert({
+          agent_email: data.agentEmail || null,
+          ...updateData,
+        })
+        .select()
+        .single()
+
+      application = newApp
+      applicationError = insertError
+    }
 
     if (applicationError) {
       console.error("Database error:", applicationError)
       throw new Error(`Database error: ${applicationError.message}`)
     }
 
-    console.log("Application inserted:", application.id)
+    console.log("✅ Application processed:", application.id)
 
+    // FIXED: Delete any existing upload records and create new ones
+    console.log("🗑️ Cleaning up existing upload records...")
+    await supabase
+      .from("merchant_uploads")
+      .delete()
+      .eq("application_id", application.id)
+
+    // Insert upload records into merchant_uploads table
+    const uploadPromises: Promise<any>[] = []
+
+    Object.entries(uploadedFiles).forEach(([documentType, fileUrl]) => {
+      const uploadType = data.uploads?.[documentType]?.uploadType || "file"
+      uploadPromises.push(
+        supabase.from("merchant_uploads").insert({
+          application_id: application.id,
+          document_type: documentType,
+          file_url: fileUrl,
+          upload_type: uploadType,
+        })
+      )
+      console.log(`📎 Queuing upload record: ${documentType} -> ${fileUrl}`)
+    })
+
+    if (uploadPromises.length > 0) {
+      const uploadResults = await Promise.all(uploadPromises)
+      console.log("✅ Upload records created:", uploadResults.length)
+    } else {
+      console.log("⚠️ No uploads to process")
+    }
+
+    // Sync with Airtable
     try {
       const baseUrl = new URL(request.url).origin
       const airtableResponse = await fetch(`${baseUrl}/api/sync-airtable`, {
@@ -471,49 +514,13 @@ export async function POST(request: Request) {
       })
 
       if (airtableResponse.ok) {
-        console.log("✅ Airtable invite record deleted successfully")
+        console.log("✅ Airtable sync completed successfully")
       } else {
-        console.error("⚠️ Airtable invite deletion failed (non-blocking)")
+        console.error("⚠️ Airtable sync failed (non-blocking)")
       }
     } catch (airtableError) {
-      console.error("⚠️ Airtable invite deletion failed (non-blocking):", airtableError)
-      // Don't fail the main request if Airtable deletion fails
-    }
-
-    // Insert upload records into merchant_uploads table
-    const uploadPromises: Promise<any>[] = []
-
-    // Handle URL uploads from the original data
-    if (data.uploads) {
-      Object.entries(data.uploads).forEach(([documentType, upload]: [string, any]) => {
-        if (upload?.uploadType === "url" && upload.url) {
-          uploadPromises.push(
-            supabase.from("merchant_uploads").insert({
-              application_id: application.id,
-              document_type: documentType,
-              file_url: upload.url,
-              upload_type: "url",
-            }),
-          )
-        }
-      })
-    }
-
-    // Handle file uploads
-    Object.entries(uploadedFiles).forEach(([documentType, fileUrl]) => {
-      uploadPromises.push(
-        supabase.from("merchant_uploads").insert({
-          application_id: application.id,
-          document_type: documentType,
-          file_url: fileUrl,
-          upload_type: "file",
-        }),
-      )
-    })
-
-    if (uploadPromises.length > 0) {
-      await Promise.all(uploadPromises)
-      console.log("File upload records created")
+      console.error("⚠️ Airtable sync failed (non-blocking):", airtableError)
+      // Don't fail the main request if Airtable sync fails
     }
 
     const terminals = data.terminals
@@ -537,6 +544,7 @@ export async function POST(request: Request) {
        <p><strong>Business Type:</strong> ${data.businessType}</p>
        <p><strong>Monthly Volume:</strong> $${data.monthlyVolume}</p>
        ${terminalsHtml}
+       <p><strong>Uploaded Files:</strong> ${Object.keys(uploadedFiles).length} files</p>
        <p><strong>Account Manager:</strong> ${data.agentEmail || "Direct"}</p>
        <p><strong>Application ID:</strong> ${application.id}</p>
        <p>Please review the application in the admin dashboard.</p>
@@ -560,11 +568,13 @@ export async function POST(request: Request) {
     })
     if (!zapRes.ok) {
       console.error("Zapier non-200:", zapRes.status, await zapRes.text().catch(() => ""))
+    } else {
+      console.log("✅ Zapier webhook sent successfully")
     }
 
     // Send emails
     try {
-      console.log("Sending emails...")
+      console.log("📧 Sending emails...")
 
       // Send to admin
       await resend.emails.send({
@@ -592,16 +602,17 @@ export async function POST(request: Request) {
        `,
       })
 
-      console.log("Emails sent")
+      console.log("✅ Emails sent")
     } catch (emailError) {
-      console.error("Email sending failed:", emailError)
+      console.error("❌ Email sending failed:", emailError)
       // Don't fail the whole request if email fails
     }
 
-    console.log("Application submission completed successfully")
+    console.log("=== APPLICATION SUBMISSION COMPLETED SUCCESSFULLY ===")
     return NextResponse.json({ success: true, applicationId: application.id })
   } catch (error) {
-    console.error("Error submitting application:", error)
+    console.error("💥 FATAL ERROR in submit application:", error)
+    console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace")
     return NextResponse.json(
       {
         success: false,
