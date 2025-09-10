@@ -64,21 +64,68 @@ const NUMERIC_FIELDS = [
   "pct_manual_no_imprint",
 ]
 
-// Function to convert camelCase to snake_case
+// Improved snake_case to camelCase conversion
+const snakeToCamel = (str: string) => {
+  return str.replace(/([-_][a-z])/g, (group) => 
+    group.toUpperCase().replace("-", "").replace("_", "")
+  )
+}
+
+// Improved camelCase to snake_case conversion
 function toSnakeCase(str: string): string {
   return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
 }
 
-// ✅ Function to clean numeric values
-function cleanNumericValue(value: any): number | null {
-  if (value === "" || value === null || value === undefined) {
-    return null
+// Enhanced convertKeysToCamelCase with better field mapping
+const convertKeysToCamelCase = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map((v) => convertKeysToCamelCase(v))
+  } else if (obj !== null && typeof obj === "object") {
+    return Object.keys(obj).reduce((acc: Record<string, any>, key: string) => {
+      const camelKey = snakeToCamel(key)
+      
+      // Handle special field mappings that might get lost
+      const specialMappings: Record<string, string> = {
+        'dob': 'dob', // Keep date of birth as is
+        'gov_id_type': 'govIdType',
+        'gov_id_number': 'govIdNumber', 
+        'gov_id_expiration': 'govIdExpiration',
+        'gov_id_state': 'govIdState',
+        'address_line_1': 'addressLine1',
+        'address_line_2': 'addressLine2',
+        'zip_extended': 'zipExtended',
+        'dba_address_line_1': 'dbaAddressLine1',
+        'dba_address_line_2': 'dbaAddressLine2',
+        'dba_zip_extended': 'dbaZipExtended',
+        'legal_address_line_1': 'legalAddressLine1',
+        'legal_address_line_2': 'legalAddressLine2', 
+        'legal_zip_extended': 'legalZipExtended',
+        'pct_card_swiped': 'pctCardSwiped',
+        'pct_manual_imprint': 'pctManualImprint',
+        'pct_manual_no_imprint': 'pctManualNoImprint',
+        'monthly_volume': 'monthlyVolume',
+        'average_ticket': 'averageTicket',
+        'highest_ticket': 'highestTicket',
+        'business_type': 'businessType',
+        'refund_policy': 'refundPolicy',
+        'previous_processor': 'previousProcessor',
+        'reason_for_termination': 'reasonForTermination',
+        'seasonal_business': 'seasonalBusiness',
+        'seasonal_months': 'seasonalMonths',
+        'uses_fulfillment_house': 'usesFulfillmentHouse',
+        'uses_third_parties': 'usesThirdParties',
+        'third_parties_list': 'thirdPartiesList'
+      }
+      
+      const finalKey = specialMappings[key] || camelKey
+      acc[finalKey] = convertKeysToCamelCase(obj[key])
+      return acc
+    }, {})
   }
-  const num = Number(value)
-  return isNaN(num) ? null : num
+  return obj
 }
 
-// Function to convert object keys from camelCase to snake_case and handle numeric fields
+// Enhanced convertToSnakeCase with better field mapping  
 function convertToSnakeCase(obj: any): any {
   if (Array.isArray(obj)) {
     return obj.map(convertToSnakeCase)
@@ -87,7 +134,7 @@ function convertToSnakeCase(obj: any): any {
     for (const [key, value] of Object.entries(obj)) {
       const snakeKey = toSnakeCase(key)
 
-      // ✅ Handle numeric fields specially
+      // Handle numeric fields specially
       if (NUMERIC_FIELDS.includes(snakeKey)) {
         converted[snakeKey] = cleanNumericValue(value)
       } else {

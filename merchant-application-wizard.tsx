@@ -44,7 +44,28 @@ const convertKeysToCamelCase = (obj: any): any => {
     return obj.map((v) => convertKeysToCamelCase(v))
   } else if (obj !== null && typeof obj === "object") {
     return Object.keys(obj).reduce((acc: Record<string, any>, key: string) => {
-      const camelKey = snakeToCamel(key)
+      // Special handling for known problematic fields
+      const fieldMappings: Record<string, string> = {
+        'date_of_birth': 'dob',
+        'first_name': 'firstName', 
+        'last_name': 'lastName',
+        'middle_name': 'middleName',
+        'gov_id_type': 'govIdType',
+        'gov_id_number': 'govIdNumber',
+        'gov_id_expiration': 'govIdExpiration', 
+        'gov_id_state': 'govIdState',
+        'address_line_1': 'addressLine1',
+        'address_line_2': 'addressLine2',
+        'zip_extended': 'zipExtended',
+        'dba_address_line_1': 'dbaAddressLine1',
+        'dba_address_line_2': 'dbaAddressLine2',
+        'dba_zip_extended': 'dbaZipExtended',
+        'legal_address_line_1': 'legalAddressLine1',
+        'legal_address_line_2': 'legalAddressLine2',
+        'legal_zip_extended': 'legalZipExtended'
+      }
+      
+      const camelKey = fieldMappings[key] || snakeToCamel(key)
       acc[camelKey] = convertKeysToCamelCase(obj[key])
       return acc
     }, {})
@@ -2186,7 +2207,10 @@ export default function MerchantApplicationWizard() {
                 <Label htmlFor="dbaState">
                   State <span className={!errors.dbaState ? "text-slate-500" : "text-red-500"}>*</span>
                 </Label>
-                <Select value={formData.dbaState} onValueChange={(value) => updateFormData("dbaState", value)}>
+                <Select 
+                    value={formData.dbaState || ""} // Add fallback
+                    onValueChange={(value) => updateFormData("dbaState", value)}
+                  >
                   <SelectTrigger className={errors.dbaState ? "border-red-500" : ""}>
                     <SelectValue placeholder="Select State" />
                   </SelectTrigger>
@@ -2769,7 +2793,7 @@ export default function MerchantApplicationWizard() {
                   </Label>
                   <Input
                     type="date"
-                    value={principal.dob}
+                    value={principal.dob || ""} // Add the || "" fallback
                     onChange={(e) => updatePrincipal(principal.id, "dob", e.target.value)}
                     className={errors[`principal${index}Dob`] ? "border-red-500" : ""}
                   />
@@ -2895,7 +2919,7 @@ export default function MerchantApplicationWizard() {
                     <span className={errors[`principal${index}GovIdState`] ? "text-slate-500" : "text-red-500"}>*</span>
                   </Label>
                   <Select
-                    value={principal.govIdState}
+                    value={principal.govIdState || ""}
                     onValueChange={(v) => updatePrincipal(principal.id, "govIdState", v)}
                   >
                     <SelectTrigger className={errors[`principal${index}GovIdState`] ? "border-red-500" : ""}>
