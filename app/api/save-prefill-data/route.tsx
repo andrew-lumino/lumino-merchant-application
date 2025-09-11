@@ -76,6 +76,14 @@ function toSnakeCase(str: string): string {
   return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
 }
 
+function cleanNumericValue(value: any): number | null {
+  if (value === "" || value === null || value === undefined) {
+    return null
+  }
+  const num = Number(value)
+  return isNaN(num) ? null : num
+}
+
 // Enhanced convertKeysToCamelCase with better field mapping
 const convertKeysToCamelCase = (obj: any): any => {
   if (Array.isArray(obj)) {
