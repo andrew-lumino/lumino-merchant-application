@@ -1160,7 +1160,14 @@ export default function MerchantApplicationsTable({
                                                   <strong>Phone:</strong> <PhoneNumber value={principal.phone || null} />
                                                 </div>
                                                 <div>
-                                                  <strong>Address:</strong> {principal.address || "-"}
+                                                  <strong>Address:</strong> {(() => {
+                                                    const addressParts = [
+                                                      principal.addressLine1,
+                                                      principal.addressLine2,
+                                                      [principal.city, principal.state, principal.zip].filter(Boolean).join(', ')
+                                                    ].filter(Boolean)
+                                                    return addressParts.length > 0 ? addressParts.join(', ') : "-"
+                                                  })()}
                                                 </div>
                                                 <div>
                                                   <strong>City:</strong> {principal.city || "-"}
