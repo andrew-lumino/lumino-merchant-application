@@ -927,6 +927,9 @@ export default function MerchantApplicationsTable({
                                                 : t.price > 0
                                                   ? `($${Number(t.price).toFixed(2)})`
                                                   : ""}
+                                              {t.quantity && t.quantity > 1 && (
+                                                <span className="ml-1 font-medium text-blue-600">x {t.quantity}</span>
+                                              )}
                                             </li>
                                           ))}
                                         </ul>
