@@ -886,7 +886,11 @@ export default function MerchantApplicationsTable({
                                       <strong>Legal Name:</strong> {selectedApplication.legal_name || "-"}
                                     </div>
                                     <div>
-                                      <strong>Federal Tax ID:</strong> {selectedApplication.federal_tax_id || "-"}
+                                      <strong>Federal Tax ID:</strong>
+                                      <SensitiveField
+                                        value={selectedApplication.federal_tax_id}
+                                        maskPattern="ssn"
+                                      />
                                     </div>
                                     <div>
                                       <strong>Phone:</strong> <PhoneNumber value={selectedApplication.dba_phone || null} />
@@ -1172,7 +1176,7 @@ export default function MerchantApplicationsTable({
                                                   <SensitiveField value={principal.ssn} maskPattern="ssn" />
                                                 </div>
                                                 <div>
-                                                  <strong>Date of Birth:</strong> {principal.dateOfBirth || "-"}
+                                                  <strong>Date of Birth:</strong> {principal.dob || "-"}
                                                 </div>
                                               </div>
                                             </div>
