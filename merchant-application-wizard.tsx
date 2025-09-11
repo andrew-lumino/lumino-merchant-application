@@ -740,6 +740,15 @@ export default function MerchantApplicationWizard() {
     const key = `principal${index}${field[0].toUpperCase()}${field.slice(1)}`
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: "" }))
   }
+  
+  const sanitizeFileName = (fileName: string): string => {
+    return fileName
+      // Remove or replace special characters that cause URL issues
+      .replace(/[^a-zA-Z0-9.-]/g, '_') // Replace any non-alphanumeric chars with underscore
+      .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+      .replace(/^_|_$/g, '') // Remove leading/trailing underscores
+      .toLowerCase() // Convert to lowercase for consistency
+  }
 
   const handleFileUpload = async (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -780,7 +789,8 @@ export default function MerchantApplicationWizard() {
 
       // Generate unique filename
       const timestamp = Date.now()
-      const fileName = `${formData.dbaEmail?.replace(/[@.]/g, "_") || "temp"}/${timestamp}_${key}_${file.name}`
+      const sanitizedOriginalName = sanitizeFileName(file.name)
+      const fileName = `${formData.dbaEmail?.replace(/[@.]/g, "_") || "temp"}/${timestamp}_${key}_${sanitizedOriginalName}`
 
       // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage.from("merchant-uploads").upload(fileName, file, {
