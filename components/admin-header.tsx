@@ -52,7 +52,7 @@ export default function AdminHeader({ isAuthorized }: AdminHeaderProps) {
       <div className="mx-auto flex h-16 items-center justify-between px-4 md:px-6">
         {/* Brand: icon only on mobile, icon+text on md+ */}
         <Link href="/admin" className="flex items-center gap-2 text-gray-800">
-          <Image src="/images/lumino-logo.png" alt="Lumino" width={20} height={20} className="h-5 w-5" />
+          <Image src="/images/lumino-logo.png" alt="Lumino" width={20} height={20} className="h-10 w-10" />
           <span className="hidden md:inline text-xl font-bold">Lumino Admin</span>
           <span className="sr-only">Lumino Admin</span>
         </Link>
