@@ -555,6 +555,7 @@ export default function MerchantApplicationWizard() {
   }, [isLoaded, user])
 
   const handleAgentAction = async (action: "send" | "copy") => {
+    console.log("Current uploads state:", uploads);
     if (action === "send" && !merchantEmail) {
       toast({
         title: "Email Required",

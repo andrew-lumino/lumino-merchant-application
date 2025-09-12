@@ -161,7 +161,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     console.log("Request body keys:", Object.keys(body))
 
-    const { applicationId, formData, principals, merchantEmail, action } = body
+    const { applicationId, formData, principals, merchantEmail, action, uploads } = body
 
     const user = await currentUser()
     const agentEmail = user?.email ?? user?.emailAddresses?.[0]?.emailAddress ?? user?.primaryEmailAddressId ?? ""
@@ -318,7 +318,6 @@ export async function POST(request: Request) {
     console.log("📁 Processing uploads for prefill...")
     
     // Extract uploads from the form data
-    const uploads = formData.uploads || {}
     const uploadedFiles: Record<string, string> = {}
     
     // Process uploads from the form data structure
