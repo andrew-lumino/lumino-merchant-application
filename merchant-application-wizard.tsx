@@ -27,6 +27,7 @@ import {
   FileCheck,
   Terminal,
   Mail,
+  Eye,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import jsPDF from "jspdf"
@@ -46,25 +47,25 @@ const convertKeysToCamelCase = (obj: any): any => {
     return Object.keys(obj).reduce((acc: Record<string, any>, key: string) => {
       // Special handling for known problematic fields
       const fieldMappings: Record<string, string> = {
-        'date_of_birth': 'dob',
-        'first_name': 'firstName', 
-        'last_name': 'lastName',
-        'middle_name': 'middleName',
-        'gov_id_type': 'govIdType',
-        'gov_id_number': 'govIdNumber',
-        'gov_id_expiration': 'govIdExpiration', 
-        'gov_id_state': 'govIdState',
-        'address_line_1': 'addressLine1',
-        'address_line_2': 'addressLine2',
-        'zip_extended': 'zipExtended',
-        'dba_address_line_1': 'dbaAddressLine1',
-        'dba_address_line_2': 'dbaAddressLine2',
-        'dba_zip_extended': 'dbaZipExtended',
-        'legal_address_line_1': 'legalAddressLine1',
-        'legal_address_line_2': 'legalAddressLine2',
-        'legal_zip_extended': 'legalZipExtended'
+        date_of_birth: "dob",
+        first_name: "firstName",
+        last_name: "lastName",
+        middle_name: "middleName",
+        gov_id_type: "govIdType",
+        gov_id_number: "govIdNumber",
+        gov_id_expiration: "govIdExpiration",
+        gov_id_state: "govIdState",
+        address_line_1: "addressLine1",
+        address_line_2: "addressLine2",
+        zip_extended: "zipExtended",
+        dba_address_line_1: "dbaAddressLine1",
+        dba_address_line_2: "dbaAddressLine2",
+        dba_zip_extended: "dbaZipExtended",
+        legal_address_line_1: "legalAddressLine1",
+        legal_address_line_2: "legalAddressLine2",
+        legal_zip_extended: "legalZipExtended",
       }
-      
+
       const camelKey = fieldMappings[key] || snakeToCamel(key)
       acc[camelKey] = convertKeysToCamelCase(obj[key])
       return acc
@@ -388,6 +389,49 @@ export default function MerchantApplicationWizard() {
   const [selectedTerminals, setSelectedTerminals] = useState<any>([])
   const [isSkipMode, setIsSkipMode] = useState(false)
   const [manuallySetFields, setManuallySetFields] = useState<Set<string>>(new Set())
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handlePrefillSave = async (action: "prefill" | "send") => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const inviteId = urlParams.get("id")
+
+    if (!merchantEmail.trim()) {
+      alert("Please enter a merchant email address")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const response = await fetch("/api/save-prefill-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationId: inviteId,
+          formData,
+          principals,
+          merchantEmail,
+          action,
+          uploads, // Include uploads data in the request
+        }),
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        if (action === "send") {
+          alert("Application sent successfully!")
+        } else {
+          alert("Application saved successfully!")
+        }
+      } else {
+        alert(`Error: ${result.error}`)
+      }
+    } catch (error) {
+      console.error("Error saving application:", error)
+      alert("Failed to save application")
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   useEffect(() => {
     if (!isLoaded) return
@@ -448,72 +492,93 @@ export default function MerchantApplicationWizard() {
       setSteps(updatedSteps)
 
       if (inviteId) {
-        fetch(`/api/get-application-data?id=${inviteId}`)
-          .then((res) => res.json())
-          .then((result) => {
-            if (result.success) {
-              const appData = result.data
-              setApplicationData(appData)
+        setIsLoading(true)
+        const agentCheck = user?.emailAddresses?.[0]?.emailAddress?.includes("@golumino.com")
 
-              const createdAt = new Date(appData.created_at)
-              const now = new Date()
-              const ageInDays = (now.getTime() - createdAt.getTime()) / (1000 * 3600 * 24)
+        if (inviteId || agentCheck) {
+          fetch(`/api/get-application-data?id=${inviteId}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.success && data.application) {
+                const appData = data.application
 
-              if (!agentCheck && ageInDays > 30 && appData.status !== "submitted") {
-                setIsExpired(true)
-                setIsLoading(false)
-                return
+                if (!appData.dba_email && !agentCheck) {
+                  setIsExpired(true)
+                  setIsLoading(false)
+                  return
+                }
+
+                const camelCaseData = convertKeysToCamelCase(appData)
+                const prefillData = {
+                  ...camelCaseData,
+                  terminals: camelCaseData.terminals || [],
+                }
+
+                const cleanedData = Object.keys(prefillData).reduce((acc, key) => {
+                  acc[key] = prefillData[key] ?? (key === "terminals" ? [] : "")
+                  return acc
+                }, {} as any)
+
+                setFormData((prev) => ({ ...prev, ...cleanedData }))
+
+                if (camelCaseData.principals) {
+                  const cleanedPrincipals = camelCaseData.principals.map((principal: any) =>
+                    Object.keys(principal).reduce((acc, key) => {
+                      acc[key] = principal[key] ?? ""
+                      return acc
+                    }, {} as any),
+                  )
+                  setPrincipals(cleanedPrincipals)
+                }
+
+                if (camelCaseData.uploads && typeof camelCaseData.uploads === "object") {
+                  console.log("📁 Loading saved uploads:", camelCaseData.uploads)
+                  const loadedUploads: Record<string, FileUpload> = {}
+
+                  Object.entries(camelCaseData.uploads).forEach(([key, upload]: [string, any]) => {
+                    if (upload && upload.url) {
+                      loadedUploads[key] = {
+                        file: null,
+                        url: upload.url,
+                        uploadType: upload.uploadType || "file",
+                        preview: null,
+                        uploadStatus: "success",
+                        uploadedUrl: upload.uploadType === "file" ? upload.url : undefined,
+                        fileName: upload.fileName || "Uploaded file",
+                        errorMessage: undefined,
+                      }
+                      console.log(`📁 Loaded upload for ${key}:`, loadedUploads[key])
+                    }
+                  })
+
+                  if (Object.keys(loadedUploads).length > 0) {
+                    setUploads((prev) => ({ ...prev, ...loadedUploads }))
+                    console.log(`✅ Loaded ${Object.keys(loadedUploads).length} saved uploads`)
+                  }
+                }
+
+                setMerchantEmail(appData.dba_email || "")
+
+                if (appData.status === "invited") {
+                  fetch("/api/update-application-status", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ applicationId: inviteId, status: "opened" }),
+                  })
+                }
+              } else {
+                if (!agentCheck) setIsExpired(true)
               }
-
-              if (appData.status === "submitted" || appData.status === "resent") {
-                setIsAlreadySubmitted(true)
-                setIsLoading(false)
-                return
-              }
-
-              const camelCaseData = convertKeysToCamelCase(appData)
-              const prefillData = {
-                ...camelCaseData,
-                terminals: camelCaseData.terminals || [],
-              }
-
-              const cleanedData = Object.keys(prefillData).reduce((acc, key) => {
-                acc[key] = prefillData[key] ?? (key === "terminals" ? [] : "")
-                return acc
-              }, {} as any)
-
-              setFormData((prev) => ({ ...prev, ...cleanedData }))
-
-              if (camelCaseData.principals) {
-                const cleanedPrincipals = camelCaseData.principals.map((principal: any) =>
-                  Object.keys(principal).reduce((acc, key) => {
-                    acc[key] = principal[key] ?? ""
-                    return acc
-                  }, {} as any),
-                )
-                setPrincipals(cleanedPrincipals)
-              }
-              setMerchantEmail(appData.dba_email || "")
-
-              if (appData.status === "invited") {
-                fetch("/api/update-application-status", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ applicationId: inviteId, status: "opened" }),
-                })
-              }
-            } else {
+              setIsLoading(false)
+            })
+            .catch(() => {
               if (!agentCheck) setIsExpired(true)
-            }
-            setIsLoading(false)
-          })
-          .catch(() => {
-            if (!agentCheck) setIsExpired(true)
-            setIsLoading(false)
-          })
-      } else {
-        if (!agentCheck) setIsUnauthorized(true)
-        setIsLoading(false)
+              setIsLoading(false)
+            })
+        } else {
+          if (!agentCheck) setIsUnauthorized(true)
+          setIsLoading(false)
+        }
       }
     }
 
@@ -555,6 +620,9 @@ export default function MerchantApplicationWizard() {
   }, [isLoaded, user])
 
   const handleAgentAction = async (action: "send" | "copy") => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const inviteId = urlParams.get("id")
+
     if (action === "send" && !merchantEmail) {
       toast({
         title: "Email Required",
@@ -740,14 +808,16 @@ export default function MerchantApplicationWizard() {
     const key = `principal${index}${field[0].toUpperCase()}${field.slice(1)}`
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: "" }))
   }
-  
+
   const sanitizeFileName = (fileName: string): string => {
-    return fileName
-      // Remove or replace special characters that cause URL issues
-      .replace(/[^a-zA-Z0-9.-]/g, '_') // Replace any non-alphanumeric chars with underscore
-      .replace(/_{2,}/g, '_') // Replace multiple underscores with single
-      .replace(/^_|_$/g, '') // Remove leading/trailing underscores
-      .toLowerCase() // Convert to lowercase for consistency
+    return (
+      fileName
+        // Remove or replace special characters that cause URL issues
+        .replace(/[^a-zA-Z0-9.-]/g, "_") // Replace any non-alphanumeric chars with underscore
+        .replace(/_{2,}/g, "_") // Replace multiple underscores with single
+        .replace(/^_|_$/g, "") // Remove leading/trailing underscores
+        .toLowerCase()
+    ) // Convert to lowercase for consistency
   }
 
   const handleFileUpload = async (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1743,6 +1813,13 @@ export default function MerchantApplicationWizard() {
       }
     }
 
+    const handleViewFile = () => {
+      const fileUrl = upload.uploadedUrl || upload.url
+      if (fileUrl) {
+        window.open(fileUrl, "_blank")
+      }
+    }
+
     return (
       <div className="space-y-4">
         <div className="mb-6">
@@ -1810,6 +1887,18 @@ export default function MerchantApplicationWizard() {
                     <div className="flex items-center space-x-2">
                       <StatusIcon />
                       <span className={`text-sm font-medium ${getStatusColor()}`}>{upload.fileName}</span>
+                      {upload.uploadStatus === "success" && (upload.uploadedUrl || upload.url) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleViewFile}
+                          title="View file"
+                          className="ml-2 text-blue-600 hover:text-blue-800"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                     {/* Show X button for success, error, and warning states */}
                     {(upload.uploadStatus === "success" ||
@@ -1882,6 +1971,18 @@ export default function MerchantApplicationWizard() {
                               ? "✗ Invalid URL"
                               : "URL added"}
                       </span>
+                      {upload.uploadStatus === "success" && upload.url && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleViewFile}
+                          title="View file"
+                          className="ml-2 text-blue-600 hover:text-blue-800"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                     {/* Add X button for URL clearing */}
                     <Button
@@ -2217,10 +2318,10 @@ export default function MerchantApplicationWizard() {
                 <Label htmlFor="dbaState">
                   State <span className={!errors.dbaState ? "text-slate-500" : "text-red-500"}>*</span>
                 </Label>
-                <Select 
-                    value={formData.dbaState || ""} // Add fallback
-                    onValueChange={(value) => updateFormData("dbaState", value)}
-                  >
+                <Select
+                  value={formData.dbaState || ""} // Add fallback
+                  onValueChange={(value) => updateFormData("dbaState", value)}
+                >
                   <SelectTrigger className={errors.dbaState ? "border-red-500" : ""}>
                     <SelectValue placeholder="Select State" />
                   </SelectTrigger>

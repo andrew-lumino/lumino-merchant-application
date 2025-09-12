@@ -12,18 +12,18 @@ async function sendZapierWebhook(status: string, agentEmail: string, merchantEma
       merchant_email: merchantEmail,
       timestamp: new Date().toISOString(),
     }
-    
+
     console.log("📤 Sending Zapier webhook:", webhookData)
-    
+
     const response = await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        Accept: "application/json",
       },
       body: JSON.stringify(webhookData),
     })
-    
+
     if (!response.ok) {
       const errorText = await response.text()
       console.error("❌ Zapier webhook failed:", response.status, errorText)
@@ -66,9 +66,7 @@ const NUMERIC_FIELDS = [
 
 // Improved snake_case to camelCase conversion
 const snakeToCamel = (str: string) => {
-  return str.replace(/([-_][a-z])/g, (group) => 
-    group.toUpperCase().replace("-", "").replace("_", "")
-  )
+  return str.replace(/([-_][a-z])/g, (group) => group.toUpperCase().replace("-", "").replace("_", ""))
 }
 
 // Improved camelCase to snake_case conversion
@@ -91,40 +89,40 @@ const convertKeysToCamelCase = (obj: any): any => {
   } else if (obj !== null && typeof obj === "object") {
     return Object.keys(obj).reduce((acc: Record<string, any>, key: string) => {
       const camelKey = snakeToCamel(key)
-      
+
       // Handle special field mappings that might get lost
       const specialMappings: Record<string, string> = {
-        'dob': 'dob', // Keep date of birth as is
-        'gov_id_type': 'govIdType',
-        'gov_id_number': 'govIdNumber', 
-        'gov_id_expiration': 'govIdExpiration',
-        'gov_id_state': 'govIdState',
-        'address_line_1': 'addressLine1',
-        'address_line_2': 'addressLine2',
-        'zip_extended': 'zipExtended',
-        'dba_address_line_1': 'dbaAddressLine1',
-        'dba_address_line_2': 'dbaAddressLine2',
-        'dba_zip_extended': 'dbaZipExtended',
-        'legal_address_line_1': 'legalAddressLine1',
-        'legal_address_line_2': 'legalAddressLine2', 
-        'legal_zip_extended': 'legalZipExtended',
-        'pct_card_swiped': 'pctCardSwiped',
-        'pct_manual_imprint': 'pctManualImprint',
-        'pct_manual_no_imprint': 'pctManualNoImprint',
-        'monthly_volume': 'monthlyVolume',
-        'average_ticket': 'averageTicket',
-        'highest_ticket': 'highestTicket',
-        'business_type': 'businessType',
-        'refund_policy': 'refundPolicy',
-        'previous_processor': 'previousProcessor',
-        'reason_for_termination': 'reasonForTermination',
-        'seasonal_business': 'seasonalBusiness',
-        'seasonal_months': 'seasonalMonths',
-        'uses_fulfillment_house': 'usesFulfillmentHouse',
-        'uses_third_parties': 'usesThirdParties',
-        'third_parties_list': 'thirdPartiesList'
+        dob: "dob", // Keep date of birth as is
+        gov_id_type: "govIdType",
+        gov_id_number: "govIdNumber",
+        gov_id_expiration: "govIdExpiration",
+        gov_id_state: "govIdState",
+        address_line_1: "addressLine1",
+        address_line_2: "addressLine2",
+        zip_extended: "zipExtended",
+        dba_address_line_1: "dbaAddressLine1",
+        dba_address_line_2: "dbaAddressLine2",
+        dba_zip_extended: "dbaZipExtended",
+        legal_address_line_1: "legalAddressLine1",
+        legal_address_line_2: "legalAddressLine2",
+        legal_zip_extended: "legalZipExtended",
+        pct_card_swiped: "pctCardSwiped",
+        pct_manual_imprint: "pctManualImprint",
+        pct_manual_no_imprint: "pctManualNoImprint",
+        monthly_volume: "monthlyVolume",
+        average_ticket: "averageTicket",
+        highest_ticket: "highestTicket",
+        business_type: "businessType",
+        refund_policy: "refundPolicy",
+        previous_processor: "previousProcessor",
+        reason_for_termination: "reasonForTermination",
+        seasonal_business: "seasonalBusiness",
+        seasonal_months: "seasonalMonths",
+        uses_fulfillment_house: "usesFulfillmentHouse",
+        uses_third_parties: "usesThirdParties",
+        third_parties_list: "thirdPartiesList",
       }
-      
+
       const finalKey = specialMappings[key] || camelKey
       acc[finalKey] = convertKeysToCamelCase(obj[key])
       return acc
@@ -133,7 +131,7 @@ const convertKeysToCamelCase = (obj: any): any => {
   return obj
 }
 
-// Enhanced convertToSnakeCase with better field mapping  
+// Enhanced convertToSnakeCase with better field mapping
 function convertToSnakeCase(obj: any): any {
   if (Array.isArray(obj)) {
     return obj.map(convertToSnakeCase)
@@ -161,7 +159,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     console.log("Request body keys:", Object.keys(body))
 
-    const { applicationId, formData, principals, merchantEmail, action } = body
+    const { applicationId, formData, principals, merchantEmail, action, uploads } = body
 
     const user = await currentUser()
     const agentEmail = user?.email ?? user?.emailAddresses?.[0]?.emailAddress ?? user?.primaryEmailAddressId ?? ""
@@ -171,6 +169,7 @@ export async function POST(request: Request) {
     console.log("Merchant Email:", merchantEmail)
     console.log("Form Data keys:", formData ? Object.keys(formData) : "NO FORM DATA")
     console.log("Principals count:", principals ? principals.length : "NO PRINCIPALS")
+    console.log("Uploads keys:", uploads ? Object.keys(uploads) : "NO UPLOADS")
 
     if (!applicationId) {
       console.error("❌ Missing application ID")
@@ -208,6 +207,28 @@ export async function POST(request: Request) {
       monthlyVolume: cleanData.monthlyVolume,
       averageTicket: cleanData.averageTicket,
     })
+
+    if (uploads && typeof uploads === "object") {
+      console.log("📁 Processing file uploads...")
+      const processedUploads: Record<string, any> = {}
+
+      Object.entries(uploads).forEach(([key, upload]: [string, any]) => {
+        if (upload && (upload.uploadedUrl || upload.url)) {
+          processedUploads[key] = {
+            uploadType: upload.uploadType || "file",
+            url: upload.uploadedUrl || upload.url,
+            fileName: upload.fileName || null,
+            uploadStatus: upload.uploadStatus || "success",
+          }
+          console.log(`📁 Processed upload for ${key}:`, processedUploads[key])
+        }
+      })
+
+      if (Object.keys(processedUploads).length > 0) {
+        cleanData.uploads = processedUploads
+        console.log(`✅ Saved ${Object.keys(processedUploads).length} file uploads`)
+      }
+    }
 
     // Remove sensitive fields from the top-level form data
     SENSITIVE_FIELDS.forEach((field) => {
@@ -313,25 +334,6 @@ export async function POST(request: Request) {
 
     const inviteLink = `https://apply.golumino.com/?id=${applicationId}`
     console.log("🔗 Generated invite link:", inviteLink)
-
-    // try {
-    //   const baseUrl = new URL(request.url).origin
-    //   await fetch(`${baseUrl}/api/sync-airtable`, {
-    //     method: "POST",
-    //     headers: { "Content-Type": "application/json" },
-    //     body: JSON.stringify({
-    //       applicationId,
-    //       action: action === "send" ? "invite_sent" : "prefill_saved",
-    //       data: updateData,
-    //       agentEmail,
-    //       merchantEmail,
-    //     }),
-    //   })
-    //   console.log("✅ Airtable sync completed")
-    // } catch (airtableError) {
-    //   console.error("⚠️ Airtable sync failed (non-blocking):", airtableError)
-    //   // Don't fail the main request if Airtable sync fails
-    // }
 
     // Send Zapier webhook for all actions (both prefill and send)
     try {
