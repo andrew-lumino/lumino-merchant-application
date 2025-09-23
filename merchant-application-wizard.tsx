@@ -35,6 +35,7 @@ import { TerminalSelector } from "@/components/terminal-selector"
 import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
+import { MerchantQuickActions } from "@/components/merchant-quick-actions"
 
 const snakeToCamel = (str: string) =>
   str.replace(/([-_][a-z])/g, (group) => group.toUpperCase().replace("-", "").replace("_", ""))
@@ -1947,7 +1948,7 @@ export default function MerchantApplicationWizard() {
       <CardHeader className="text-center">
         <div className="mx-auto mb-4">
           <img
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/design-mode-images/Asset%201-wEH0RtiEltaxlcASiBu6BNiNpsfxYI.png"
+            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/design-mode-images/Asset%201-nWhNPGY6TYxVy4kUqpUSRyGlGFhJQ7.png"
             alt="LUMINO"
             className="h-12 mx-auto"
           />
@@ -3656,6 +3657,13 @@ export default function MerchantApplicationWizard() {
           </Button>
         </div>
       )}
+      <MerchantQuickActions
+        formData={formData}
+        principals={principals}
+        uploads={uploads}
+        isAgentMode={isAgentMode}
+        show={mainContentVisible && !isSubmitted && currentStep > 0}
+      />
       {isAgentMode &&
         !isSubmitted &&
         !isExpired &&
