@@ -718,7 +718,7 @@ export default function InvitePage() {
               <CardDescription>Create a single invite link or send it directly to an email address</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <Label htmlFor="linkEmail">Optional: Associate with Email</Label>
                 <div className="space-y-2">
                   <Input
@@ -761,11 +761,11 @@ export default function InvitePage() {
                     Link generated successfully! Share this with your merchant prospect.
                   </p>
                 </div>
-              )}
+              )} */}
 
               <div className="border-t pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="singleEmail">Or send directly to email</Label>
+                  {/* <Label htmlFor="singleEmail">Or send directly to email</Label> */}
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <Input

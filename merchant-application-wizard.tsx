@@ -1947,7 +1947,7 @@ export default function MerchantApplicationWizard() {
       <CardHeader className="text-center">
         <div className="mx-auto mb-4">
           <img
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Asset%201-RAzSkc3nOwQkrKaww9K8u5pyOf1KZg.png"
+            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/design-mode-images/Asset%201-wEH0RtiEltaxlcASiBu6BNiNpsfxYI.png"
             alt="LUMINO"
             className="h-12 mx-auto"
           />
