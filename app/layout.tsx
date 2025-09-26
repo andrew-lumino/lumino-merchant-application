@@ -6,6 +6,7 @@ import { ClerkProvider } from "@clerk/nextjs"
 import { currentUser } from "@clerk/nextjs/server"
 import { Toaster } from "@/components/ui/toaster"
 import AdminHeader from "@/components/admin-header"
+import { Analytics } from "@vercel/analytics/next"
 
 const inter = Inter({ subsets: ["latin"] })
 type AuthzResult = { isAuthorized: boolean; email: string | null }
