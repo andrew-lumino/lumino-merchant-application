@@ -9,19 +9,15 @@ export async function POST(req: Request) {
   try {
     const { emails, agent_email } = await req.json()
 
-    // Validate inputs
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
       return NextResponse.json({ success: false, error: "No valid emails provided" }, { status: 400 })
     }
 
-    // Improved email validation regex
     const emailRegex =
       /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
 
-    // Better email parsing and validation
     const validEmails = emails
       .flatMap((email) => {
-        // Handle cases where emails might be passed as a single string with delimiters
         if (typeof email === "string" && (email.includes(",") || email.includes(";"))) {
           return email.split(/[,;\n]/).map((e) => e.trim())
         }
@@ -30,7 +26,6 @@ export async function POST(req: Request) {
       .map((email) => (typeof email === "string" ? email.trim().toLowerCase() : ""))
       .filter((email) => email && emailRegex.test(email))
 
-    // Remove duplicates
     const uniqueEmails = Array.from(new Set(validEmails))
 
     if (uniqueEmails.length === 0) {
@@ -44,7 +39,7 @@ export async function POST(req: Request) {
       skipped: [] as string[],
     }
 
-    // Check for existing invites to avoid duplicates
+    // Check for existing invites
     const { data: existingInvites } = await supabase
       .from("merchant_applications")
       .select("dba_email")
@@ -52,23 +47,21 @@ export async function POST(req: Request) {
       .eq("status", "invited")
 
     const existingEmails = new Set(existingInvites?.map((inv) => inv.dba_email) || [])
-
-    // Separate new emails from existing ones
     const newEmails = uniqueEmails.filter((email) => !existingEmails.has(email))
     const skippedEmails = uniqueEmails.filter((email) => existingEmails.has(email))
-
     results.skipped = skippedEmails
 
-    // Process new emails with rate limiting (to avoid overwhelming email service)
-    const batchSize = 10 // Process 10 at a time
-    const delay = 100 // 100ms between batches
+    // Process in batches
+    const batchSize = 10
+    const delay = 100
 
     for (let i = 0; i < newEmails.length; i += batchSize) {
       const batch = newEmails.slice(i, i + batchSize)
+      const batchItems: Array<{ email: string; inviteLink: string; dbId: string }> = []
 
-      const batchPromises = batch.map(async (email: string) => {
+      // Create DB rows first
+      const createPromises = batch.map(async (email: string) => {
         try {
-          // Create invite record
           const { data, error } = await supabase
             .from("merchant_applications")
             .insert({
@@ -83,43 +76,31 @@ export async function POST(req: Request) {
           if (error) throw error
 
           const inviteLink = `${baseUrl}?id=${data.id}`
-
-          // Send email with retry logic
-          await sendEmailWithRetry(email, inviteLink, 3)
-
-          try {
-            await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                status: "merchant_application_draft",
-                agent_email: agent_email,
-                merchant_email: email,
-              }),
-            })
-          } catch (zapierError) {
-            console.error("⚠️ Zapier webhook failed (non-blocking):", zapierError)
-          }
-
-          results.successful.push(email)
-          return { success: true, email, id: data.id }
+          batchItems.push({ email, inviteLink, dbId: data.id })
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown error"
           results.failed.push({ email, error: errorMessage })
-          console.error(`Failed to process ${email}:`, error)
-          return { success: false, email, error: errorMessage }
+          console.error(`Failed to create invite row for ${email}:`, error)
         }
       })
 
-      await Promise.all(batchPromises)
+      await Promise.all(createPromises)
 
-      // Add delay between batches to avoid rate limits
+      // Send batch emails if we have any
+      if (batchItems.length > 0) {
+        await sendBatchEmails(batchItems, results, agent_email)
+      }
+
       if (i + batchSize < newEmails.length) {
         await new Promise((resolve) => setTimeout(resolve, delay))
       }
     }
 
-    // Build response message
+    // Send notification to agent if there were failures
+    if (results.failed.length > 0 && agent_email) {
+      await sendFailureNotification(agent_email, results)
+    }
+
     let message = `Successfully sent ${results.successful.length} invites`
     if (results.skipped.length > 0) {
       message += `, skipped ${results.skipped.length} existing invites`
@@ -153,31 +134,140 @@ export async function POST(req: Request) {
   }
 }
 
-// Helper function to send email with retry logic
-async function sendEmailWithRetry(email: string, inviteLink: string, maxRetries: number) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      await resend.emails.send({
-        from: "Lumino <no-reply@golumino.com>",
-        to: [email],
-        subject: "You're Invited to Apply for Lumino Merchant Services",
-        html: getEmailTemplate(inviteLink),
-      })
-      return // Success, exit retry loop
-    } catch (error) {
-      console.error(`Attempt ${attempt} failed for ${email}:`, error)
+async function sendBatchEmails(
+  items: Array<{ email: string; inviteLink: string; dbId: string }>,
+  results: { successful: string[]; failed: Array<{ email: string; error: string }> },
+  agent_email: string | null
+) {
+  const payload = items.map((it) => ({
+    from: "Lumino <no-reply@golumino.com>",
+    to: [it.email],
+    subject: "You're Invited to Apply for Lumino Merchant Services",
+    html: getEmailTemplate(it.inviteLink),
+  }))
 
-      if (attempt === maxRetries) {
-        throw error // Final attempt failed, throw error
+  try {
+    const res = await resend.batch.send(payload)
+    const data = (res as any).data ?? []
+    const errors = (res as any).error ? [{ index: 0, message: (res as any).error.message }] : []
+
+    const errorByIndex = new Map<number, string>()
+    for (const e of errors) {
+      errorByIndex.set(e.index, e.message)
+    }
+
+    let dataPointer = 0
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (errorByIndex.has(i)) {
+        const errMsg = errorByIndex.get(i) ?? "Unknown resend error"
+        await supabase
+          .from("merchant_applications")
+          .update({ status: "invited" }) // Keep as invited but log the error
+          .eq("id", item.dbId)
+        
+        results.failed.push({ email: item.email, error: errMsg })
+        console.warn(`Resend batch item failed (index ${i}) for ${item.email}: ${errMsg}`)
+      } else {
+        const resendId = data[dataPointer]?.id
+        dataPointer++
+        
+        await supabase
+          .from("merchant_applications")
+          .update({ status: "invited" })
+          .eq("id", item.dbId)
+        
+        results.successful.push(item.email)
+
+        // Zapier webhook (non-blocking)
+        try {
+          await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: "merchant_application_draft",
+              agent_email: agent_email,
+              merchant_email: item.email,
+            }),
+          })
+        } catch (zapierError) {
+          console.error("⚠️ Zapier webhook failed (non-blocking):", zapierError)
+        }
       }
+    }
+  } catch (batchErr) {
+    console.error("Resend batch send failed, falling back to individual sends:", batchErr)
 
-      // Wait before retrying (exponential backoff)
-      await new Promise((resolve) => setTimeout(resolve, attempt * 1000))
+    // Fallback to individual sends
+    for (const item of items) {
+      try {
+        await resend.emails.send({
+          from: "Lumino <no-reply@golumino.com>",
+          to: [item.email],
+          subject: "You're Invited to Apply for Lumino Merchant Services",
+          html: getEmailTemplate(item.inviteLink),
+        })
+
+        await supabase
+          .from("merchant_applications")
+          .update({ status: "invited" })
+          .eq("id", item.dbId)
+        
+        results.successful.push(item.email)
+
+        // Zapier webhook
+        try {
+          await fetch("https://hooks.zapier.com/hooks/catch/5609223/uui9oa1/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: "merchant_application_draft",
+              agent_email: agent_email,
+              merchant_email: item.email,
+            }),
+          })
+        } catch (zapierError) {
+          console.error("⚠️ Zapier webhook failed (non-blocking):", zapierError)
+        }
+      } catch (singleErr) {
+        const message = singleErr instanceof Error ? singleErr.message : "Unknown send error"
+        results.failed.push({ email: item.email, error: message })
+      }
     }
   }
 }
 
-// Extract email template to separate function for cleaner code
+async function sendFailureNotification(
+  agent_email: string,
+  results: { failed: Array<{ email: string; error: string }>; successful: string[] }
+) {
+  try {
+    const failedList = results.failed
+      .map((f) => `• ${f.email}: ${f.error}`)
+      .join("\n")
+
+    await resend.emails.send({
+      from: "Lumino <no-reply@golumino.com>",
+      to: [agent_email],
+      subject: "Merchant Invite Batch - Some Failures Reported",
+      html: `
+        <div style="font-family: sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
+          <h2>Invite Batch Summary</h2>
+          <p><strong>Successful:</strong> ${results.successful.length}</p>
+          <p><strong>Failed:</strong> ${results.failed.length}</p>
+          
+          <h3>Failed Invites:</h3>
+          <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px;">${failedList}</pre>
+          
+          <p>Please review these failures and retry if needed.</p>
+        </div>
+      `,
+    })
+  } catch (error) {
+    console.error("Failed to send notification email:", error)
+  }
+}
+
 function getEmailTemplate(inviteLink: string): string {
   return `
     <div style="font-family: sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">

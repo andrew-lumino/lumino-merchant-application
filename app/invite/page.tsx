@@ -541,11 +541,10 @@ export default function InvitePage() {
 
   const handleSendMultipleEmails = async () => {
     const emails = multipleEmails
-      .split(/[,;\n]/) // Split on comma, semicolon, or newline
+      .split(/[,;\n]/)
       .map((email) => email.trim())
       .filter((email) => email && email.includes("@"))
       .filter((email) => {
-        // More thorough email validation
         const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
         return emailRegex.test(email)
       })
@@ -572,15 +571,51 @@ export default function InvitePage() {
 
       const data = await response.json()
 
+      // Handle different response scenarios
       if (data.success) {
+        // Complete success
         toast({
           title: "Success!",
-          description: data.message || `${emails.length} invites sent successfully`,
+          description: data.message || `All ${emails.length} invites sent successfully`,
         })
         setMultipleEmails("")
         setCsvFile(null)
-        fetchAgentInvites() // Refresh history
+        fetchAgentInvites()
+      } else if (data.partialSuccess) {
+        // Partial success - some failed
+        toast({
+          title: "Partially Completed",
+          description: `${data.results.successful} succeeded, ${data.results.failed} failed. Check your email for details.`,
+          variant: "destructive",
+        })
+        
+        // Show detailed error list
+        if (data.results.failedEmails && data.results.failedEmails.length > 0) {
+          console.error("Failed emails:", data.results.failedEmails)
+          
+          // Optional: Show a modal or alert with failed emails
+          const failedList = data.results.failedEmails
+            .map((f: { email: string; error: string }) => `${f.email}: ${f.error}`)
+            .join('\n')
+          
+          toast({
+            title: "Failed Invitations",
+            description: (
+              <div className="mt-2 space-y-1">
+                <p className="text-sm">The following emails failed:</p>
+                <pre className="text-xs bg-gray-100 p-2 rounded max-h-40 overflow-auto">
+                  {failedList}
+                </pre>
+              </div>
+            ),
+            variant: "destructive",
+            duration: 10000, // Show longer for failed emails
+          })
+        }
+        
+        fetchAgentInvites()
       } else {
+        // Complete failure
         throw new Error(data.message || data.error || "Failed to send invites")
       }
     } catch (error) {
