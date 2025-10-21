@@ -1,14 +1,30 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { requireAuth, validateUUID } from "@/lib/auth"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
+const ALLOWED_STATUSES = ["draft", "invited", "in_progress", "submitted", "approved", "rejected"]
+
 export async function POST(request: Request) {
+  const auth = await requireAuth()
+  if (!auth.authorized) {
+    return auth.response
+  }
+
   try {
     const { applicationId, status } = await request.json()
 
     if (!applicationId || !status) {
       return NextResponse.json({ success: false, error: "Application ID and status are required" }, { status: 400 })
+    }
+
+    if (!validateUUID(applicationId)) {
+      return NextResponse.json({ success: false, error: "Invalid application ID format" }, { status: 400 })
+    }
+
+    if (!ALLOWED_STATUSES.includes(status)) {
+      return NextResponse.json({ success: false, error: "Invalid status value" }, { status: 400 })
     }
 
     const { data, error } = await supabase

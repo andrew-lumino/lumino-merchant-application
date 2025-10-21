@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { requireAuth, validateEmail } from "@/lib/auth"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(req: Request) {
+  const auth = await requireAuth()
+  if (!auth.authorized) {
+    return auth.response
+  }
+
   try {
     console.log("=== GENERATE MERCHANT INVITE API CALLED ===")
 
@@ -12,10 +18,16 @@ export async function POST(req: Request) {
 
     const { agent_email, merchant_email } = body
 
+    if (agent_email && !validateEmail(agent_email)) {
+      return NextResponse.json({ success: false, error: "Invalid agent email format" }, { status: 400 })
+    }
+    if (merchant_email && !validateEmail(merchant_email)) {
+      return NextResponse.json({ success: false, error: "Invalid merchant email format" }, { status: 400 })
+    }
+
     console.log("Agent email:", agent_email)
     console.log("Merchant email:", merchant_email)
 
-    // Determine the initial status based on whether this is for agent pre-fill or direct invite
     const initialStatus = merchant_email ? "invited" : "draft"
     console.log("Initial status:", initialStatus)
 
@@ -34,12 +46,6 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error("❌ Supabase insert error:", error)
-      console.error("Error details:", {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      })
       return NextResponse.json(
         {
           success: false,
@@ -51,7 +57,6 @@ export async function POST(req: Request) {
     }
 
     console.log("✅ Application created successfully!")
-    console.log("Created application data:", data)
     console.log(`Application ID: ${data.id} with status: ${initialStatus}`)
 
     if (initialStatus === "draft") {
@@ -61,7 +66,6 @@ export async function POST(req: Request) {
           agent_email: agent_email,
         }
 
-        // Only include merchant_email if it exists
         if (merchant_email) {
           zapierData.merchant_email = merchant_email
         }
@@ -94,7 +98,6 @@ export async function POST(req: Request) {
       console.log("✅ Airtable sync initiated")
     } catch (airtableError) {
       console.error("⚠️ Airtable sync failed (non-blocking):", airtableError)
-      // Don't fail the main request if Airtable sync fails
     }
 
     console.log("=== GENERATE MERCHANT INVITE API COMPLETED ===")
@@ -105,12 +108,10 @@ export async function POST(req: Request) {
     })
   } catch (err: any) {
     console.error("💥 FATAL ERROR in generate-merchant-invite:", err)
-    console.error("Error stack:", err?.stack)
     return NextResponse.json(
       {
         success: false,
         error: err?.message || "Internal Server Error",
-        details: err?.stack,
       },
       { status: 500 },
     )

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { validateUUID } from "@/lib/auth"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -12,11 +13,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: "Application ID is required" }, { status: 400 })
     }
 
+    if (!validateUUID(id)) {
+      return NextResponse.json({ success: false, error: "Invalid ID format" }, { status: 400 })
+    }
+
     const { data, error } = await supabase.from("merchant_applications").select("*").eq("id", id).single()
 
     if (error) {
       if (error.code === "PGRST116") {
-        // This code means no rows were found
         return NextResponse.json({ success: false, error: "Application not found" }, { status: 404 })
       }
       console.error("Supabase error:", error)

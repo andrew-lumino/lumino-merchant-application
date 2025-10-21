@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
+import { requireAuth, validateUUID, validateEmail } from "@/lib/auth"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(request: Request) {
+  const auth = await requireAuth()
+  if (!auth.authorized) {
+    return auth.response
+  }
+
   try {
     const { expiredApplicationId } = await request.json()
 
@@ -13,7 +19,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Expired Application ID is required" }, { status: 400 })
     }
 
-    // 1. Fetch the data from the expired application
+    if (!validateUUID(expiredApplicationId)) {
+      return NextResponse.json({ success: false, error: "Invalid application ID format" }, { status: 400 })
+    }
+
     const { data: oldData, error: fetchError } = await supabase
       .from("merchant_applications")
       .select("*")
@@ -25,11 +34,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Could not find the original application." }, { status: 404 })
     }
 
-    // 2. Prepare the new application data, excluding fields that should be reset
     const { id, created_at, updated_at, status, ...newData } = oldData
-    newData.status = "invited" // Reset status to invited
+    newData.status = "invited"
 
-    // 3. Insert the new application record
     const { data: newApplication, error: insertError } = await supabase
       .from("merchant_applications")
       .insert([newData])
@@ -41,15 +48,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Failed to create a new invitation." }, { status: 500 })
     }
 
-    // 4. Mark the old application as 'resent'
     await supabase.from("merchant_applications").update({ status: "resent" }).eq("id", expiredApplicationId)
 
-    // 5. Send the new invitation email
     const newInviteId = newApplication.id
     const merchantEmail = newApplication.dba_email
     const inviteLink = `https://apply.golumino.com/?id=${newInviteId}`
 
-    if (merchantEmail) {
+    if (merchantEmail && validateEmail(merchantEmail)) {
       await resend.emails.send({
         from: "Lumino <no-reply@golumino.com>",
         to: [merchantEmail, "apps@golumino.com"],

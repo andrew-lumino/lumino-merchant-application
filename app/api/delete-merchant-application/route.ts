@@ -1,14 +1,24 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { requireAuth, validateUUID } from "@/lib/auth"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function DELETE(request: Request) {
+  const auth = await requireAuth()
+  if (!auth.authorized) {
+    return auth.response
+  }
+
   try {
     const { id } = await request.json()
 
     if (!id) {
       return NextResponse.json({ error: "ID is required" }, { status: 400 })
+    }
+
+    if (!validateUUID(id)) {
+      return NextResponse.json({ error: "Invalid ID format" }, { status: 400 })
     }
 
     const { error } = await supabase.from("merchant_applications").delete().eq("id", id)

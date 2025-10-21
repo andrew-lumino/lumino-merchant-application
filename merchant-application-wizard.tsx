@@ -47,25 +47,25 @@ const convertKeysToCamelCase = (obj: any): any => {
     return Object.keys(obj).reduce((acc: Record<string, any>, key: string) => {
       // Special handling for known problematic fields
       const fieldMappings: Record<string, string> = {
-        'date_of_birth': 'dob',
-        'first_name': 'firstName', 
-        'last_name': 'lastName',
-        'middle_name': 'middleName',
-        'gov_id_type': 'govIdType',
-        'gov_id_number': 'govIdNumber',
-        'gov_id_expiration': 'govIdExpiration', 
-        'gov_id_state': 'govIdState',
-        'address_line_1': 'addressLine1',
-        'address_line_2': 'addressLine2',
-        'zip_extended': 'zipExtended',
-        'dba_address_line_1': 'dbaAddressLine1',
-        'dba_address_line_2': 'dbaAddressLine2',
-        'dba_zip_extended': 'dbaZipExtended',
-        'legal_address_line_1': 'legalAddressLine1',
-        'legal_address_line_2': 'legalAddressLine2',
-        'legal_zip_extended': 'legalZipExtended'
+        date_of_birth: "dob",
+        first_name: "firstName",
+        last_name: "lastName",
+        middle_name: "middleName",
+        gov_id_type: "govIdType",
+        gov_id_number: "govIdNumber",
+        gov_id_expiration: "govIdExpiration",
+        gov_id_state: "govIdState",
+        address_line_1: "addressLine1",
+        address_line_2: "addressLine2",
+        zip_extended: "zipExtended",
+        dba_address_line_1: "dbaAddressLine1",
+        dba_address_line_2: "dbaAddressLine2",
+        dba_zip_extended: "dbaZipExtended",
+        legal_address_line_1: "legalAddressLine1",
+        legal_address_line_2: "legalAddressLine2",
+        legal_zip_extended: "legalZipExtended",
       }
-      
+
       const camelKey = fieldMappings[key] || snakeToCamel(key)
       acc[camelKey] = convertKeysToCamelCase(obj[key])
       return acc
@@ -171,6 +171,15 @@ interface FormData {
   usesThirdParties: boolean
   thirdPartiesList: string
   terminals: SelectedTerminal[]
+
+  // Accepted Optional Card Types
+  acceptAmex: string
+  acceptDebit: string
+  acceptEbt: string
+
+  // Rate Programs
+  rateProgram: string
+  rateProgramValue: string
 
   // Managing Member
   managingMemberSameAs: boolean
@@ -312,6 +321,13 @@ export default function MerchantApplicationWizard() {
     thirdPartiesList: "",
     terminals: [],
 
+    // Initialize new fields
+    acceptAmex: "no",
+    acceptDebit: "yes",
+    acceptEbt: "no",
+    rateProgram: "",
+    rateProgramValue: "",
+
     managingMemberSameAs: false,
     managingMemberReference: "",
     managingMemberFirstName: "",
@@ -401,6 +417,7 @@ export default function MerchantApplicationWizard() {
       { id: "welcome", label: "Welcome", status: "visited" },
       { id: "merchant-info", label: "Merchant Info", status: "not_visited" },
       { id: "merchant-profile", label: "Merchant Profile", status: "not_visited" },
+      { id: "account-rates", label: "Account Rates", status: "not_visited" },
       { id: "owners", label: "Owners & Officers", status: "not_visited" },
       { id: "banking", label: "Banking Info", status: "not_visited" },
       { id: "uploads", label: "Document Uploads", status: "not_visited" },
@@ -440,6 +457,7 @@ export default function MerchantApplicationWizard() {
         { id: "welcome", label: agentCheck ? "Instructions" : "Welcome", status: "visited" },
         { id: "merchant-info", label: "Merchant Info", status: "not_visited" },
         { id: "merchant-profile", label: "Merchant Profile", status: "not_visited" },
+        { id: "account-rates", label: "Account Rates", status: "not_visited" },
         { id: "owners", label: "Owners & Officers", status: "not_visited" },
         { id: "banking", label: "Banking Info", status: "not_visited" },
         { id: "uploads", label: "Document Uploads", status: "not_visited" },
@@ -476,6 +494,12 @@ export default function MerchantApplicationWizard() {
               const prefillData = {
                 ...camelCaseData,
                 terminals: camelCaseData.terminals || [],
+                // Pre-fill new fields from API data if available
+                acceptAmex: camelCaseData.acceptAmex ?? "no",
+                acceptDebit: camelCaseData.acceptDebit ?? "yes",
+                acceptEbt: camelCaseData.acceptEbt ?? "no",
+                rateProgram: camelCaseData.rateProgram ?? "",
+                rateProgramValue: camelCaseData.rateProgramValue ?? "",
               }
 
               const cleanedData = Object.keys(prefillData).reduce((acc, key) => {
@@ -556,7 +580,7 @@ export default function MerchantApplicationWizard() {
   }, [isLoaded, user])
 
   const handleAgentAction = async (action: "send" | "copy") => {
-    console.log("Current uploads state:", uploads);
+    console.log("Current uploads state:", uploads)
     if (action === "send" && !merchantEmail) {
       toast({
         title: "Email Required",
@@ -742,14 +766,16 @@ export default function MerchantApplicationWizard() {
     const key = `principal${index}${field[0].toUpperCase()}${field.slice(1)}`
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: "" }))
   }
-  
+
   const sanitizeFileName = (fileName: string): string => {
-    return fileName
-      // Remove or replace special characters that cause URL issues
-      .replace(/[^a-zA-Z0-9.-]/g, '_') // Replace any non-alphanumeric chars with underscore
-      .replace(/_{2,}/g, '_') // Replace multiple underscores with single
-      .replace(/^_|_$/g, '') // Remove leading/trailing underscores
-      .toLowerCase() // Convert to lowercase for consistency
+    return (
+      fileName
+        // Remove or replace special characters that cause URL issues
+        .replace(/[^a-zA-Z0-9.-]/g, "_") // Replace any non-alphanumeric chars with underscore
+        .replace(/_{2,}/g, "_") // Replace multiple underscores with single
+        .replace(/^_|_$/g, "") // Remove leading/trailing underscores
+        .toLowerCase()
+    ) // Convert to lowercase for consistency
   }
 
   const handleFileUpload = async (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1201,6 +1227,14 @@ export default function MerchantApplicationWizard() {
         if (Math.abs(totalPct - 100) > 1 && totalPct !== 0) {
           newErrors.pctCardSwiped = `Transaction percentages must total 100% (currently ${totalPct}%)`
         }
+        break
+
+      // Added validation for Account Rates step
+      case "account-rates":
+        // Validation for optional card types is informational, not strictly required
+        // if (shouldEnforce) {
+        //   // Add specific validation if needed for rate programs
+        // }
         break
 
       case "owners":
@@ -1947,11 +1981,7 @@ export default function MerchantApplicationWizard() {
     <Card>
       <CardHeader className="text-center">
         <div className="mx-auto mb-4">
-          <img
-            src="/images/design-mode/Asset%201(1).png"
-            alt="LUMINO"
-            className="h-12 mx-auto"
-          />
+          <img src="/images/design-mode/Asset%201(1).png" alt="LUMINO" className="h-12 mx-auto" />
           <p className="text-sm text-gray-600 mt-2">
             4201 Main St Suite 201, Houston, TX 77002 | 1-866-488-4168 | support@golumino.com | www.golumino.com
           </p>
@@ -2219,10 +2249,10 @@ export default function MerchantApplicationWizard() {
                 <Label htmlFor="dbaState">
                   State <span className={!errors.dbaState ? "text-slate-500" : "text-red-500"}>*</span>
                 </Label>
-                <Select 
-                    value={formData.dbaState || ""} // Add fallback
-                    onValueChange={(value) => updateFormData("dbaState", value)}
-                  >
+                <Select
+                  value={formData.dbaState || ""} // Add fallback
+                  onValueChange={(value) => updateFormData("dbaState", value)}
+                >
                   <SelectTrigger className={errors.dbaState ? "border-red-500" : ""}>
                     <SelectValue placeholder="Select State" />
                   </SelectTrigger>
@@ -2556,16 +2586,6 @@ export default function MerchantApplicationWizard() {
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="reasonForTermination">Reason for Termination</Label>
-          <Input
-            id="reasonForTermination"
-            placeholder="Reason for Termination (optional)"
-            value={formData.reasonForTermination}
-            onChange={(e) => updateFormData("reasonForTermination", e.target.value)}
-          />
-        </div>
-
         <div className="space-y-4">
           <div className="flex items-center space-x-2">
             <Checkbox
@@ -2732,6 +2752,174 @@ export default function MerchantApplicationWizard() {
               <p className="text-xs text-gray-500 mt-2">These terminals were selected by your account manager.</p>
             </div>
           ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  )
+
+  const renderAccountRatesStep = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Account Rates</CardTitle>
+        <CardDescription>Configure accepted card types and rate programs</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Accepted Optional Card Types */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium border-b pb-2">Accepted Optional Card Types</h3>
+
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="acceptAmex">AMEX</Label>
+              <Select value={formData.acceptAmex} onValueChange={(value) => updateFormData("acceptAmex", value)}>
+                <SelectTrigger id="acceptAmex">
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="acceptDebit">DEBIT</Label>
+              <Select value={formData.acceptDebit} onValueChange={(value) => updateFormData("acceptDebit", value)}>
+                <SelectTrigger id="acceptDebit">
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="acceptEbt">EBT</Label>
+              <Select value={formData.acceptEbt} onValueChange={(value) => updateFormData("acceptEbt", value)}>
+                <SelectTrigger id="acceptEbt">
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Conditional AMEX information */}
+          {formData.acceptAmex === "yes" && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-900">
+                AMEX processing will be configured for your account. Additional AMEX-specific rates and terms will
+                apply.
+              </p>
+            </div>
+          )}
+
+          {/* Conditional DEBIT pricing options */}
+          {formData.acceptDebit === "yes" && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-900">
+                DEBIT card processing will be enabled with three pricing type options available.
+              </p>
+            </div>
+          )}
+
+          {/* Conditional EBT pricing options */}
+          {formData.acceptEbt === "yes" && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-900">
+                EBT processing will be enabled with three pricing type options available.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Rate Programs */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium border-b pb-2">Rate Programs</h3>
+
+          <div className="space-y-2">
+            <Label htmlFor="rateProgram">Select Rate Program</Label>
+            <Select
+              value={formData.rateProgram}
+              onValueChange={(value) => {
+                updateFormData("rateProgram", value)
+                updateFormData("rateProgramValue", "") // Reset value when program changes
+              }}
+            >
+              <SelectTrigger id="rateProgram">
+                <SelectValue placeholder="Select a rate program..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dual-pricing">Dual Pricing or Cash Discounting</SelectItem>
+                <SelectItem value="flat-rate">Flat Rate</SelectItem>
+                <SelectItem value="interchange-plus">Interchange + Pricing</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Conditional dropdown based on rate program selection */}
+          {formData.rateProgram === "dual-pricing" && (
+            <div className="space-y-2">
+              <Label htmlFor="rateProgramValue">Dual Pricing / Cash Discounting Options</Label>
+              <Select
+                value={formData.rateProgramValue}
+                onValueChange={(value) => updateFormData("rateProgramValue", value)}
+              >
+                <SelectTrigger id="rateProgramValue">
+                  <SelectValue placeholder="Select an option..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="option1">Option 1 - Standard Dual Pricing</SelectItem>
+                  <SelectItem value="option2">Option 2 - Cash Discount Program</SelectItem>
+                  <SelectItem value="option3">Option 3 - Custom Dual Pricing</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {formData.rateProgram === "flat-rate" && (
+            <div className="space-y-2">
+              <Label htmlFor="rateProgramValue">Flat Rate Options</Label>
+              <Select
+                value={formData.rateProgramValue}
+                onValueChange={(value) => updateFormData("rateProgramValue", value)}
+              >
+                <SelectTrigger id="rateProgramValue">
+                  <SelectValue placeholder="Select an option..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="flat1">2.6% + $0.10 per transaction</SelectItem>
+                  <SelectItem value="flat2">2.9% + $0.15 per transaction</SelectItem>
+                  <SelectItem value="flat3">3.5% + $0.15 per transaction</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {formData.rateProgram === "interchange-plus" && (
+            <div className="space-y-2">
+              <Label htmlFor="rateProgramValue">Interchange + Pricing Options</Label>
+              <Select
+                value={formData.rateProgramValue}
+                onValueChange={(value) => updateFormData("rateProgramValue", value)}
+              >
+                <SelectTrigger id="rateProgramValue">
+                  <SelectValue placeholder="Select an option..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ic1">Interchange + 0.25% + $0.10</SelectItem>
+                  <SelectItem value="ic2">Interchange + 0.50% + $0.15</SelectItem>
+                  <SelectItem value="ic3">Interchange + 0.75% + $0.20</SelectItem>
+                  <SelectItem value="ic4">Interchange + 1.00% + $0.25</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -3603,6 +3791,8 @@ export default function MerchantApplicationWizard() {
         return renderMerchantInfoStep()
       case "merchant-profile":
         return renderMerchantProfileStep()
+      case "account-rates":
+        return renderAccountRatesStep()
       case "owners":
         return renderOwnersStep()
       case "banking":
