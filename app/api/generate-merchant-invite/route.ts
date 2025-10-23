@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { requireAuth, validateEmail } from "@/lib/auth"
+import { validateEmail } from "@/lib/auth"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(req: Request) {
-  const auth = await requireAuth()
-  if (!auth.authorized) {
-    return auth.response
-  }
-
   try {
     console.log("=== GENERATE MERCHANT INVITE API CALLED ===")
 
