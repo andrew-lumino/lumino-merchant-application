@@ -280,6 +280,15 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export default function MerchantApplicationWizard() {
   const [currentStep, setCurrentStep] = useState(0)
   const [steps, setSteps] = useState<Step[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isExpired, setIsExpired] = useState(false)
+  const [isAlreadySubmitted, setIsAlreadySubmitted] = useState(false)
+  const [isUnauthorized, setIsUnauthorized] = useState(false)
+  const [applicationData, setApplicationData] = useState<any>(null)
+  const [merchantEmail, setMerchantEmail] = useState("")
+  const [isAgentMode, setIsAgentMode] = useState(false)
+  const [isSkipMode, setIsSkipMode] = useState(false)
+  const [generatedLink, setGeneratedLink] = useState("")
 
   const [formData, setFormData] = useState<FormData>({
     agentEmail: "",
@@ -391,20 +400,69 @@ export default function MerchantApplicationWizard() {
   const { toast } = useToast()
 
   const { user, isLoaded } = useUser()
-  const [isAgentMode, setIsAgentMode] = useState(false)
-  const [applicationData, setApplicationData] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isExpired, setIsExpired] = useState(false)
-  const [isAlreadySubmitted, setIsAlreadySubmitted] = useState(false)
-  const [merchantEmail, setMerchantEmail] = useState("")
-  const [generatedLink, setGeneratedLink] = useState("")
   const [isSubmittingAgentAction, setIsSubmittingAgentAction] = useState(false)
-  const [isUnauthorized, setIsUnauthorized] = useState(false)
   const [isAgent, setIsAgent] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedTerminals, setSelectedTerminals] = useState<any>([])
-  const [isSkipMode, setIsSkipMode] = useState(false)
   const [manuallySetFields, setManuallySetFields] = useState<Set<string>>(new Set())
+
+  const getLocalStorageKey = () => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const inviteId = urlParams.get("id") || applicationData?.id
+    return inviteId ? `lumino_draft_${inviteId}` : null
+  }
+
+  useEffect(() => {
+    const key = getLocalStorageKey()
+    if (!key) return
+
+    try {
+      const saved = localStorage.getItem(key)
+      if (!saved) return
+
+      const parsed = JSON.parse(saved)
+
+      // Check if expired (72 hours)
+      const savedTime = new Date(parsed.timestamp).getTime()
+      const now = new Date().getTime()
+      const hoursOld = (now - savedTime) / (1000 * 60 * 60)
+
+      if (hoursOld > 72) {
+        localStorage.removeItem(key)
+        return
+      }
+
+      // Restore data
+      if (parsed.formData) setFormData((prev) => ({ ...prev, ...parsed.formData }))
+      if (parsed.principals) setPrincipals(parsed.principals)
+      if (parsed.uploads) setUploads(parsed.uploads)
+      if (parsed.currentStep !== undefined) setCurrentStep(parsed.currentStep)
+
+      console.log("[v0] Restored draft from localStorage")
+    } catch (error) {
+      console.error("[v0] Failed to load draft:", error)
+      if (key) localStorage.removeItem(key)
+    }
+  }, []) // Only run once on mount
+
+  useEffect(() => {
+    const key = getLocalStorageKey()
+    if (!key || !isAgentMode) return // Only save for agents
+
+    try {
+      const dataToSave = {
+        timestamp: new Date().toISOString(),
+        formData,
+        principals,
+        uploads,
+        currentStep,
+      }
+      localStorage.setItem(key, JSON.stringify(dataToSave))
+      console.log("[v0] Saved draft to localStorage")
+    } catch (error) {
+      console.error("[v0] Failed to save draft:", error)
+    }
+  }, [formData, principals, uploads, currentStep, isAgentMode])
 
   useEffect(() => {
     if (!isLoaded) return
@@ -1392,6 +1450,13 @@ export default function MerchantApplicationWizard() {
         const confirmationStepIndex = steps.findIndex((s) => s.id === "confirmation")
         setCurrentStep(confirmationStepIndex)
         updateStepStatus(confirmationStepIndex, "visited")
+
+        const key = getLocalStorageKey()
+        if (key) {
+          localStorage.removeItem(key)
+          console.log("[v0] Cleared draft from localStorage after submission")
+        }
+
         setIsSubmitted(true)
       } else {
         throw new Error(result.error || "Submission failed")
@@ -1628,9 +1693,9 @@ export default function MerchantApplicationWizard() {
     const subject = "Request for Merchant Application Invitation"
     const body = `Hello Lumino Support Team,
 
-  I would like to request a merchant application invitation to be sent to this email so I can complete my merchant onboarding.
+I would like to request a merchant application invitation to be sent to this email so I can complete my merchant onboarding.
 
-  Thank you!`
+Thank you!`
 
     const mailtoLink = `mailto:support@golumino.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 
