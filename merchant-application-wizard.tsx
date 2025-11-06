@@ -52,7 +52,7 @@ const convertKeysToCamelCase = (obj: any): any => {
         last_name: "lastName",
         middle_name: "middleName",
         gov_id_type: "govIdType",
-        gov_id_number: "govIdNumber",
+        govId_number: "govIdNumber",
         gov_id_expiration: "govIdExpiration",
         gov_id_state: "govIdState",
         address_line_1: "addressLine1",
@@ -290,6 +290,13 @@ export default function MerchantApplicationWizard() {
   const [isSkipMode, setIsSkipMode] = useState(false)
   const [generatedLink, setGeneratedLink] = useState("")
 
+  const [agentName, setAgentName] = useState("")
+  const [isSubmittingAgentAction, setIsSubmittingAgentAction] = useState(false) // Renamed from isSubmittingAgentAction to avoid confusion with submit button
+  const [isAgent, setIsAgent] = useState(false) // This state seems unused, keeping for now
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedTerminals, setSelectedTerminals] = useState<any>([]) // This state seems unused, keeping for now
+  const [manuallySetFields, setManuallySetFields] = useState<Set<string>>(new Set()) // This state seems unused, keeping for now
+
   const [formData, setFormData] = useState<FormData>({
     agentEmail: "",
     dbaName: "",
@@ -400,11 +407,8 @@ export default function MerchantApplicationWizard() {
   const { toast } = useToast()
 
   const { user, isLoaded } = useUser()
-  const [isSubmittingAgentAction, setIsSubmittingAgentAction] = useState(false)
-  const [isAgent, setIsAgent] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedTerminals, setSelectedTerminals] = useState<any>([])
-  const [manuallySetFields, setManuallySetFields] = useState<Set<string>>(new Set())
+  const { email } = user || {} // Moved email declaration here for clarity
+  const normalizedEmail = (email || "").toLowerCase()
 
   const getLocalStorageKey = () => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -467,23 +471,6 @@ export default function MerchantApplicationWizard() {
   useEffect(() => {
     if (!isLoaded) return
 
-    const email =
-      user?.email || user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || null
-
-    // Always set up basic steps first (even for non-logged-in users)
-    const allSteps: Step[] = [
-      { id: "welcome", label: "Welcome", status: "visited" },
-      { id: "merchant-info", label: "Merchant Info", status: "not_visited" },
-      { id: "merchant-profile", label: "Merchant Profile", status: "not_visited" },
-      { id: "account-rates", label: "Account Rates", status: "not_visited" },
-      { id: "owners", label: "Owners & Officers", status: "not_visited" },
-      { id: "banking", label: "Banking Info", status: "not_visited" },
-      { id: "uploads", label: "Document Uploads", status: "not_visited" },
-      { id: "review", label: "Review & Sign", status: "not_visited" },
-      { id: "confirmation", label: "Confirmation", status: "not_visited" },
-    ]
-    setSteps(allSteps)
-
     const urlParams = new URLSearchParams(window.location.search)
     const inviteId = urlParams.get("id")
     const skipEnabled = ["skip", "agent"].some((k) => (urlParams.get(k) ?? "").toLowerCase() === "true")
@@ -492,22 +479,23 @@ export default function MerchantApplicationWizard() {
       setIsSkipMode(true)
     }
 
-    if (!email && inviteId) {
-      setIsLoading(false)
-    }
-
-    if (!email && !inviteId) {
-      setIsLoading(false)
-      setIsUnauthorized(true)
-      return
-    }
-
-    const normalized = (email ?? "").toLowerCase()
-    const isLuminoStaff = normalized.endsWith("@golumino.com")
+    const isLuminoStaff = normalizedEmail.endsWith("@golumino.com")
 
     // Define the main logic that runs after we determine agent status
     const handleAgentStatusDetermined = (finalIsAgentMode: boolean) => {
       setIsAgentMode(finalIsAgentMode)
+
+      if (finalIsAgentMode || isLuminoStaff) {
+        const savedName = localStorage.getItem("lumino_agent_name")
+        if (savedName) {
+          setAgentName(savedName)
+        } else {
+          // Auto-generate from email
+          const emailUsername = normalizedEmail.split("@")[0] || ""
+          const autoName = emailUsername.toUpperCase().replace(/[._-]/g, " ")
+          setAgentName(autoName)
+        }
+      }
 
       // Update steps with agent status
       const agentCheck = isLuminoStaff || finalIsAgentMode
@@ -578,7 +566,9 @@ export default function MerchantApplicationWizard() {
               }
               setMerchantEmail(appData.dba_email || "")
 
-              if (appData.status === "invited") {
+              if (appData.status === "opened") {
+                // If already opened, no need to update status to opened
+              } else if (appData.status === "invited") {
                 fetch("/api/update-application-status", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -586,15 +576,24 @@ export default function MerchantApplicationWizard() {
                 })
               }
             } else {
-              if (!agentCheck) setIsExpired(true)
+              // If no application data found, and not in agent mode, show unauthorized or expired
+              if (!agentCheck) {
+                if (result.error === "Application expired") {
+                  setIsExpired(true)
+                } else {
+                  setIsUnauthorized(true) // Assume invalid or unauthorized if not expired
+                }
+              }
             }
             setIsLoading(false)
           })
           .catch(() => {
-            if (!agentCheck) setIsExpired(true)
+            // If fetch fails, treat as unauthorized or expired
+            if (!agentCheck) setIsUnauthorized(true) // Default to unauthorized on fetch error
             setIsLoading(false)
           })
       } else {
+        // If no inviteId and not in agent mode, it's unauthorized
         if (!agentCheck) setIsUnauthorized(true)
         setIsLoading(false)
       }
@@ -623,7 +622,7 @@ export default function MerchantApplicationWizard() {
         const data: { success: boolean; emails?: string[] } = await res.json()
 
         // Check if email is in the list (case-insensitive)
-        const isEmailInList = data.emails?.some((listEmail) => listEmail.toLowerCase() === normalized) ?? false
+        const isEmailInList = data.emails?.some((listEmail) => listEmail.toLowerCase() === normalizedEmail) ?? false
 
         handleAgentStatusDetermined(isEmailInList)
       } catch (err) {
@@ -635,14 +634,36 @@ export default function MerchantApplicationWizard() {
     })()
 
     return () => ac.abort()
-  }, [isLoaded, user])
+  }, [isLoaded, user, normalizedEmail])
+
+  // Remove the duplicate agent name effect, it's now handled within handleAgentStatusDetermined
+  // useEffect(() => {
+  //   if (isAgentMode) {
+  //     const savedName = localStorage.getItem("lumino_agent_name")
+  //     if (savedName) {
+  //       setAgentName(savedName)
+  //     } else if (normalizedEmail) {
+  //       // Auto-generate from email
+  //       const username = normalizedEmail.split("@")[0].toUpperCase().replace(/[._-]/g, " ")
+  //       setAgentName(username)
+  //     }
+  //   }
+  // }, [isAgentMode, normalizedEmail])
 
   const handleAgentAction = async (action: "send" | "copy") => {
-    console.log("Current uploads state:", uploads)
+    if (!agentName || agentName.trim() === "") {
+      toast({
+        title: "Agent Name Required",
+        description: "Please enter your agent name before performing this action.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (action === "send" && !merchantEmail) {
       toast({
-        title: "Email Required",
-        description: "Please enter the merchant's email address.",
+        title: "Merchant Email Required",
+        description: "Please enter the merchant's email address to send the invitation.",
         variant: "destructive",
       })
       return
@@ -661,6 +682,7 @@ export default function MerchantApplicationWizard() {
           body: JSON.stringify({
             agent_email: user?.primaryEmailAddress?.emailAddress,
             merchant_email: merchantEmail || null,
+            agent_name: agentName.trim(), // Include agent name here
           }),
         })
         const createResult = await createRes.json()
@@ -670,7 +692,7 @@ export default function MerchantApplicationWizard() {
           id: appId,
           agent_email: user?.primaryEmailAddress?.emailAddress,
           dba_email: merchantEmail || "",
-          status: "draft",
+          status: "draft", // Set initial status
           created_at: new Date().toISOString(),
         })
       }
@@ -678,7 +700,15 @@ export default function MerchantApplicationWizard() {
       const response = await fetch("/api/save-prefill-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicationId: appId, formData, principals, merchantEmail, action, uploads }),
+        body: JSON.stringify({
+          applicationId: appId,
+          formData,
+          principals,
+          merchantEmail,
+          action,
+          uploads,
+          agentName: agentName.trim(), // Include agent name in request
+        }),
       })
       const result = await response.json()
       if (!result.success) throw new Error(result.error || "Failed to process request.")
@@ -688,11 +718,20 @@ export default function MerchantApplicationWizard() {
         title: "Success!",
         description: action === "send" ? "Invitation sent successfully." : "Link copied to clipboard.",
       })
-      if (action === "copy") await navigator.clipboard.writeText(result.link)
-      setTimeout(() => {
-        window.location.href = "/invite"
-      }, 1500)
+      if (action === "copy") {
+        await navigator.clipboard.writeText(result.link)
+        // Redirect to invite page after successful copy
+        setTimeout(() => {
+          window.location.href = "/invite"
+        }, 1500)
+      } else {
+        // Redirect to invite page after successful send
+        setTimeout(() => {
+          window.location.href = "/invite"
+        }, 1500)
+      }
     } catch (error) {
+      console.error("Agent action error:", error)
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "An unknown error occurred.",
@@ -789,7 +828,7 @@ export default function MerchantApplicationWizard() {
 
   const addPrincipal = () => {
     const newPrincipal: Principal = {
-      id: (principals.length + 1).toString(),
+      id: Date.now().toString(), // Use timestamp for more unique IDs
       firstName: "",
       lastName: "",
       middleName: "",
@@ -821,7 +860,7 @@ export default function MerchantApplicationWizard() {
     setPrincipals(principals.map((p) => (p.id === id ? { ...p, [field]: value } : p)))
     // clear dynamic error for this principal field
     const index = principals.findIndex((p) => p.id === id)
-    const key = `principal${index}${field[0].toUpperCase()}${field.slice(1)}`
+    const key = `principal${index}${field[0].toUpperCase()}${field.slice(1)}` // This key generation might be fragile if order changes
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: "" }))
   }
 
@@ -845,7 +884,7 @@ export default function MerchantApplicationWizard() {
       setUploads((prev) => ({
         ...prev,
         [key]: {
-          ...prev[key],
+          ...(prev[key] || {}), // Ensure prev[key] exists
           file,
           preview: null,
           uploadType: "file",
@@ -861,7 +900,7 @@ export default function MerchantApplicationWizard() {
     setUploads((prev) => ({
       ...prev,
       [key]: {
-        ...prev[key],
+        ...(prev[key] || {}), // Ensure prev[key] exists
         file,
         uploadType: "file",
         uploadStatus: "uploading",
@@ -901,7 +940,7 @@ export default function MerchantApplicationWizard() {
           setUploads((prev) => ({
             ...prev,
             [key]: {
-              ...prev[key],
+              ...(prev[key] || {}),
               preview: reader.result as string,
             },
           }))
@@ -913,7 +952,7 @@ export default function MerchantApplicationWizard() {
       setUploads((prev) => ({
         ...prev,
         [key]: {
-          ...prev[key],
+          ...(prev[key] || {}),
           file,
           preview,
           uploadType: "file",
@@ -941,7 +980,7 @@ export default function MerchantApplicationWizard() {
       setUploads((prev) => ({
         ...prev,
         [key]: {
-          ...prev[key],
+          ...(prev[key] || {}),
           file,
           preview: null,
           uploadType: "file",
@@ -1100,15 +1139,20 @@ export default function MerchantApplicationWizard() {
       }
     }
 
+    // If fetch failed and no good extension, try probing as image
     if (!fetchSucceeded && !hasAcceptedExtension) {
-      const isImg = await probeImage(url)
-      if (isImg) {
-        return {
-          isValid: true,
-          isAcceptedFile: true,
-          warning: "Verified by loading as image (no Content-Type header exposed).",
-          contentType: "image/*",
+      try {
+        const isImg = await probeImage(url)
+        if (isImg) {
+          return {
+            isValid: true,
+            isAcceptedFile: true,
+            warning: "Verified by loading as image (no Content-Type header exposed).",
+            contentType: "image/*",
+          }
         }
+      } catch (probeError) {
+        console.log("Image probe failed:", probeError)
       }
     }
 
@@ -1124,10 +1168,13 @@ export default function MerchantApplicationWizard() {
 
   const validatePercentages = () => {
     const total =
-      Number(formData.pctCardSwiped) + Number(formData.pctManualImprint) + Number(formData.pctManualNoImprint)
+      (Number(formData.pctCardSwiped) || 0) +
+      (Number(formData.pctManualImprint) || 0) +
+      (Number(formData.pctManualNoImprint) || 0)
 
     // Allow 99-101% (within 1% tolerance)
-    if (Math.abs(total - 100) > 1) {
+    if (Math.abs(total - 100) > 1 && total !== 0) {
+      // added total !== 0 to avoid error on initial load
       setErrors((prev) => ({
         ...prev,
         pctCardSwiped: `Transaction percentages must total approximately 100% (currently ${total}%)`,
@@ -1139,16 +1186,19 @@ export default function MerchantApplicationWizard() {
   }
 
   const handleUrlUpload = async (key: string, url: string) => {
+    // Resetting the upload state completely when the URL is cleared
     if (!url.trim()) {
       setUploads((prev) => ({
         ...prev,
         [key]: {
-          ...prev[key],
+          file: null,
           url: "",
-          preview: null,
           uploadType: "url",
+          preview: null,
           uploadStatus: "idle",
           errorMessage: undefined,
+          fileName: undefined,
+          uploadedUrl: undefined,
         },
       }))
       return
@@ -1158,7 +1208,7 @@ export default function MerchantApplicationWizard() {
     setUploads((prev) => ({
       ...prev,
       [key]: {
-        ...prev[key],
+        ...(prev[key] || {}),
         url,
         preview: null,
         uploadType: "url",
@@ -1175,7 +1225,7 @@ export default function MerchantApplicationWizard() {
         setUploads((prev) => ({
           ...prev,
           [key]: {
-            ...prev[key],
+            ...(prev[key] || {}),
             url,
             preview: null,
             uploadType: "url",
@@ -1190,7 +1240,7 @@ export default function MerchantApplicationWizard() {
         setUploads((prev) => ({
           ...prev,
           [key]: {
-            ...prev[key],
+            ...(prev[key] || {}),
             url,
             preview: null,
             uploadType: "url",
@@ -1206,7 +1256,7 @@ export default function MerchantApplicationWizard() {
       setUploads((prev) => ({
         ...prev,
         [key]: {
-          ...prev[key],
+          ...(prev[key] || {}),
           url,
           preview: null,
           uploadType: "url",
@@ -1219,7 +1269,7 @@ export default function MerchantApplicationWizard() {
       setUploads((prev) => ({
         ...prev,
         [key]: {
-          ...prev[key],
+          ...(prev[key] || {}),
           url,
           preview: null,
           uploadType: "url",
@@ -1240,6 +1290,8 @@ export default function MerchantApplicationWizard() {
         preview: null,
         uploadStatus: "idle",
         errorMessage: undefined,
+        fileName: undefined,
+        uploadedUrl: undefined,
       },
     }))
   }
@@ -1283,7 +1335,8 @@ export default function MerchantApplicationWizard() {
 
         // Allow 99-101% (within 1% tolerance)
         if (Math.abs(totalPct - 100) > 1 && totalPct !== 0) {
-          newErrors.pctCardSwiped = `Transaction percentages must total 100% (currently ${totalPct}%)`
+          // Added totalPct !== 0 to avoid error on initial load
+          newErrors.pctCardSwiped = `Transaction percentages must total approximately 100% (currently ${totalPct}%)`
         }
         break
 
@@ -1341,28 +1394,27 @@ export default function MerchantApplicationWizard() {
 
   // 2) update Next to set errors only for current step (so fields turn red immediately)
   const handleNext = () => {
-    if (isSkipMode || isAgentMode) {
+    // If we are not in Agent Mode or Skip Mode, then perform validation
+    if (!isAgentMode && !isSkipMode) {
+      const errs = validateStep(currentStep)
+      setErrors(errs)
+      if (Object.keys(errs).length === 0) {
+        updateStepStatus(currentStep, "completed")
+        if (currentStep < steps.length - 2) {
+          const nextStep = currentStep + 1
+          setCurrentStep(nextStep)
+          if (steps[nextStep].status === "not_visited") updateStepStatus(nextStep, "visited")
+        }
+      } else {
+        updateStepStatus(currentStep, "error")
+      }
+    } else {
       // Skip validation in skip mode or agent mode
-      if (currentStep < steps.length - 1) {
+      if (currentStep < steps.length - 2) {
         const nextStep = currentStep + 1
         setCurrentStep(nextStep)
         if (steps[nextStep].status === "not_visited") updateStepStatus(nextStep, "visited")
       }
-      return
-    }
-
-    // Normal validation flow
-    const errs = validateStep(currentStep)
-    setErrors(errs)
-    if (Object.keys(errs).length === 0) {
-      updateStepStatus(currentStep, "completed")
-      if (currentStep < steps.length - 2) {
-        const nextStep = currentStep + 1
-        setCurrentStep(nextStep)
-        updateStepStatus(nextStep, "visited")
-      }
-    } else {
-      updateStepStatus(currentStep, "error")
     }
   }
 
@@ -1386,12 +1438,14 @@ export default function MerchantApplicationWizard() {
     const reviewStepIndex = steps.findIndex((s) => s.id === "review")
     let mergedErrors: Record<string, string> = {}
 
+    // Validate all steps up to and including the review step
     for (let i = 1; i <= reviewStepIndex; i++) {
-      const errs = validateStep(i, true)
+      const errs = validateStep(i, true) // Pass true for isFinalSubmission
       if (Object.keys(errs).length) {
         mergedErrors = { ...mergedErrors, ...errs }
         updateStepStatus(i, "error")
       } else {
+        // If the step was previously marked as error, reset it to visited if no errors now
         if (steps[i].status === "error") updateStepStatus(i, "visited")
       }
     }
@@ -1401,9 +1455,14 @@ export default function MerchantApplicationWizard() {
     if (Object.keys(mergedErrors).length > 0) {
       toast({
         title: "Validation Failed",
-        description: "Please correct the errors on the highlighted steps.",
+        description: "Please correct the errors on the highlighted steps before submitting.",
         variant: "destructive",
       })
+      // Scroll to the first step with an error
+      const firstErrorStepIndex = steps.findIndex((_, index) => Object.keys(validateStep(index, true)).length > 0)
+      if (firstErrorStepIndex !== -1) {
+        handleStepClick(firstErrorStepIndex)
+      }
       return
     }
     console.log("Starting form submission...")
@@ -1418,18 +1477,20 @@ export default function MerchantApplicationWizard() {
         id: applicationData?.id,
         principals,
         terminals: formData.terminals,
-        uploads: Object.fromEntries(
-          Object.entries(uploads)
-            .map(([key, upload]) => [
-              key,
-              upload.uploadType === "url"
-                ? { uploadType: "url", url: upload.url }
-                : upload.uploadedUrl
-                  ? { uploadType: "file", url: upload.uploadedUrl }
-                  : undefined,
-            ])
-            .filter(([, value]) => value !== undefined),
-        ),
+        // Filter out undefined uploads and correctly format URLs/files
+        uploads: Object.entries(uploads)
+          .filter(([_, upload]) => upload && (upload.uploadedUrl || upload.url)) // Only include uploads with a URL
+          .reduce(
+            (acc, [key, upload]) => {
+              if (upload.uploadType === "url") {
+                acc[key] = { uploadType: "url", url: upload.url }
+              } else if (upload.uploadedUrl) {
+                acc[key] = { uploadType: "file", url: upload.uploadedUrl }
+              }
+              return acc
+            },
+            {} as Record<string, { uploadType: "file" | "url"; url: string }>,
+          ),
       }
 
       formDataToSubmit.append("data", JSON.stringify(jsonData))
@@ -1449,7 +1510,7 @@ export default function MerchantApplicationWizard() {
         updateStepStatus(reviewStepIndex, "completed")
         const confirmationStepIndex = steps.findIndex((s) => s.id === "confirmation")
         setCurrentStep(confirmationStepIndex)
-        updateStepStatus(confirmationStepIndex, "visited")
+        updateStepStatus(confirmationStepIndex, "visited") // Mark confirmation as visited
 
         const key = getLocalStorageKey()
         if (key) {
@@ -1516,11 +1577,33 @@ export default function MerchantApplicationWizard() {
 
           // Format currency values
           let displayValue = value
-          if (key.includes("Volume") || key.includes("Ticket") || key.includes("Price")) {
+          if (
+            key.toLowerCase().includes("volume") ||
+            key.toLowerCase().includes("ticket") ||
+            key.toLowerCase().includes("price") ||
+            key.toLowerCase().includes("amount")
+          ) {
             const numValue = Number.parseFloat(value.toString().replace(/[^0-9.-]+/g, ""))
             if (!isNaN(numValue)) {
-              displayValue = `$${numValue.toLocaleString()}`
+              displayValue = `$${numValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
             }
+          }
+
+          // Handle special fields like percentages
+          if (key.toLowerCase().includes("%")) {
+            displayValue = `${Number.parseFloat(value).toFixed(2)}%`
+          }
+
+          // Handle email and phone number redaction if not agent mode
+          const isSensitiveField =
+            key.toLowerCase().includes("email") ||
+            key.toLowerCase().includes("phone") ||
+            key.toLowerCase().includes("ssn") ||
+            key.toLowerCase().includes("routing") ||
+            key.toLowerCase().includes("account") ||
+            key.toLowerCase().includes("tax id")
+          if (isSensitiveField && !isAgentMode && value !== "***REDACTED***") {
+            displayValue = "***REDACTED***"
           }
 
           doc.text(`${key}: ${displayValue}`, 25, yPosition)
@@ -1546,7 +1629,7 @@ export default function MerchantApplicationWizard() {
     const dbaAddress = [
       formData.dbaAddressLine1,
       formData.dbaAddressLine2,
-      `${formData.dbaCity}, ${formData.dbaState} ${formData.dbaZip}`,
+      `${formData.dbaCity}, ${formData.dbaState} ${formData.dbaZip}${formData.dbaZipExtended ? "-" + formData.dbaZipExtended : ""}`,
     ]
       .filter(Boolean)
       .join(", ")
@@ -1557,16 +1640,39 @@ export default function MerchantApplicationWizard() {
       })
     }
 
+    if (formData.legalDiffers) {
+      const legalAddress = [
+        formData.legalAddressLine1,
+        formData.legalAddressLine2,
+        `${formData.legalCity}, ${formData.legalState} ${formData.legalZip}${formData.legalZipExtended ? "-" + formData.legalZipExtended : ""}`,
+      ]
+        .filter(Boolean)
+        .join(", ")
+      if (legalAddress) {
+        addSection("Legal Address", { "Legal Address": legalAddress })
+      }
+    }
+
     // Business Profile
     addSection("Business Profile", {
       "Monthly Volume": formData.monthlyVolume,
       "Average Ticket": formData.averageTicket,
       "Highest Ticket": formData.highestTicket,
-      "Card Swiped %": formData.pctCardSwiped ? `${formData.pctCardSwiped}%` : "",
-      "Manual Imprint %": formData.pctManualImprint ? `${formData.pctManualImprint}%` : "",
-      "Manual No Imprint %": formData.pctManualNoImprint ? `${formData.pctManualNoImprint}%` : "",
+      "Card Swiped %": formData.pctCardSwiped ? `${Number.parseFloat(formData.pctCardSwiped).toFixed(2)}%` : "",
+      "Manual Imprint %": formData.pctManualImprint
+        ? `${Number.parseFloat(formData.pctManualImprint).toFixed(2)}%`
+        : "",
+      "Manual No Imprint %": formData.pctManualNoImprint
+        ? `${Number.parseFloat(formData.pctManualNoImprint).toFixed(2)}%`
+        : "",
       "Refund Policy": formData.refundPolicy,
       "Previous Processor": formData.previousProcessor,
+      "Reason for Termination": formData.reasonForTermination,
+      "Seasonal Business": formData.seasonalBusiness ? "Yes" : "No",
+      "Seasonal Months": formData.seasonalBusiness ? formData.seasonalMonths.join(", ") : "",
+      "Uses Fulfillment House": formData.usesFulfillmentHouse ? "Yes" : "No",
+      "Uses Third Parties": formData.usesThirdParties ? "Yes" : "No",
+      "Third Parties List": formData.usesThirdParties ? formData.thirdPartiesList : "",
     })
 
     // Terminal Information
@@ -1587,16 +1693,20 @@ export default function MerchantApplicationWizard() {
         const originalPrice = terminal.originalPrice || terminal.price || 0
         const finalPrice = terminal.price || 0
         const discount =
-          originalPrice > finalPrice
+          originalPrice > 0 && originalPrice > finalPrice
             ? ` (${(((originalPrice - finalPrice) / originalPrice) * 100).toFixed(1)}% discount)`
             : ""
 
         doc.text(`${index + 1}. ${terminal.name}`, 25, yPosition)
         yPosition += 5
-        doc.text(`   Final Price: $${finalPrice.toFixed(2)}${discount}`, 25, yPosition)
+        doc.text(`   Final Price: ${formatDiscountedPrice(finalPrice, originalPrice)}`, 25, yPosition)
         if (originalPrice !== finalPrice) {
           yPosition += 5
           doc.text(`   Original Price: $${originalPrice.toFixed(2)}`, 25, yPosition)
+        }
+        if (terminal.quantity && terminal.quantity > 1) {
+          yPosition += 5
+          doc.text(`   Quantity: ${terminal.quantity}`, 25, yPosition)
         }
         yPosition += 8
       })
@@ -1607,8 +1717,8 @@ export default function MerchantApplicationWizard() {
     if (formData.bankName) {
       addSection("Banking Information", {
         "Bank Name": formData.bankName,
-        "Routing Number": formData.routingNumber ? "***REDACTED***" : "",
-        "Account Number": formData.accountNumber ? "***REDACTED***" : "",
+        "Routing Number": formData.routingNumber, // Will be redacted if not agent
+        "Account Number": formData.accountNumber, // Will be redacted if not agent
         "Batch Time": formData.batchTime,
       })
     }
@@ -1626,7 +1736,7 @@ export default function MerchantApplicationWizard() {
       doc.setFont("helvetica", "normal")
 
       principals.forEach((principal: any, index: number) => {
-        if (principal.firstName || principal.lastName) {
+        if (principal.firstName || principal.lastName || principal.position || principal.email) {
           checkPageBreak(12)
 
           const name = `${principal.firstName || ""} ${principal.lastName || ""}`.trim()
@@ -1635,6 +1745,13 @@ export default function MerchantApplicationWizard() {
 
           if (principal.position) {
             doc.text(`   Position: ${principal.position}`, 25, yPosition)
+            yPosition += 5
+          }
+          if (principal.email && !isAgentMode) {
+            doc.text(`   Email: ***REDACTED***`, 25, yPosition)
+            yPosition += 5
+          } else if (principal.email) {
+            doc.text(`   Email: ${principal.email}`, 25, yPosition)
             yPosition += 5
           }
 
@@ -1685,7 +1802,8 @@ export default function MerchantApplicationWizard() {
 
   const handleAgreementScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const element = e.currentTarget
-    const isAtBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 20
+    // Add a small buffer to account for potential scroll inaccuracies
+    const isAtBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 5
     if (isAtBottom && !formData.agreementScrolled) updateFormData("agreementScrolled", true)
   }
 
@@ -1744,7 +1862,7 @@ Thank you!`
     <div className="mb-8 overflow-x-auto">
       <div className="flex justify-between min-w-max px-4 py-1">
         {steps.map((step, index) => {
-          if (step.id === "confirmation") return null
+          if (step.id === "confirmation") return null // Skip confirmation step in indicator
           const isActive = index === currentStep
           let statusClass = "bg-white border-gray-300 text-gray-500"
           let icon = <span className="text-sm font-medium">{index + 1}</span>
@@ -1757,7 +1875,8 @@ Thank you!`
           } else if (isActive) {
             statusClass = "bg-blue-500 border-blue-500 text-white"
           }
-          const canNavigate = isAgentMode || index <= currentStep || steps[index - 1]?.status === "completed"
+          const canNavigate =
+            isAgentMode || isSkipMode || index <= currentStep || steps[index - 1]?.status === "completed"
           return (
             <div key={step.id} className="flex flex-col items-center min-w-0 flex-1 mx-2">
               <button
@@ -1791,10 +1910,12 @@ Thank you!`
     const upload = uploads[uploadKey] || {
       file: null,
       url: "",
-      uploadType: "file",
+      uploadType: "file", // Default to file upload
       preview: null,
       uploadStatus: "idle",
       errorMessage: undefined,
+      fileName: undefined,
+      uploadedUrl: undefined,
     }
 
     // Create a consistent reset function
@@ -1964,7 +2085,7 @@ Thank you!`
                         console.error("Failed to read clipboard:", error)
                       }
                     }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 h-auto text-xs font-medium text-blue-600 hover:text-blue-100 bg-blue-50 hover:bg-slate-600 border border-blue-300 rounded"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 h-auto text-xs font-medium text-blue-600 hover:bg-blue-50 border border-blue-300 rounded"
                   >
                     PASTE
                   </Button>
@@ -2020,21 +2141,27 @@ Thank you!`
 
   const formatDiscountedPrice = (price: number, originalPrice: number) => {
     if (price === originalPrice) {
-      return `$${price.toFixed(2)}`
+      return `$${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     }
     if (price === 0) {
       return (
         <span className="inline-flex items-center gap-2">
           <span className="font-bold text-green-600">FREE</span>
-          <s className="text-gray-500">${originalPrice.toFixed(2)}</s>
+          <s className="text-gray-500">
+            ${originalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </s>
         </span>
       )
     }
-    const discount = ((originalPrice - price) / originalPrice) * 100
+    const discount = originalPrice > 0 ? ((originalPrice - price) / originalPrice) * 100 : 0
     return (
       <span className="inline-flex items-center gap-2 flex-wrap">
-        <span className="font-bold">${price.toFixed(2)}</span>
-        <s className="text-gray-500">${originalPrice.toFixed(2)}</s>
+        <span className="font-bold">
+          ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+        <s className="text-gray-500">
+          ${originalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </s>
         <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full">
           {discount.toFixed(0)}% OFF
         </span>
@@ -2115,6 +2242,28 @@ Thank you!`
         </div>
       </CardHeader>
       <CardContent className="space-y-4 prose max-w-none">
+        <div className="not-prose mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <label htmlFor="agentName" className="block text-sm font-medium text-gray-700 mb-2">
+            Your Agent Name (Required)
+          </label>
+          <input
+            id="agentName"
+            type="text"
+            value={agentName}
+            onChange={(e) => {
+              const value = e.target.value.toUpperCase()
+              setAgentName(value)
+              localStorage.setItem("lumino_agent_name", value) // Save to localStorage
+            }}
+            placeholder="Enter your name (e.g., JOHN SMITH)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            required
+          />
+          <p className="text-xs text-gray-600 mt-1">
+            This name will be saved and used for all future applications you create.
+          </p>
+        </div>
+
         <p>
           You are in <strong>Agent Mode</strong>. This allows you to pre-fill an application on behalf of a merchant.
           Follow these steps:
@@ -2315,7 +2464,7 @@ Thank you!`
                   State <span className={!errors.dbaState ? "text-slate-500" : "text-red-500"}>*</span>
                 </Label>
                 <Select
-                  value={formData.dbaState || ""} // Add fallback
+                  value={formData.dbaState || ""} // Add fallback for initial state
                   onValueChange={(value) => updateFormData("dbaState", value)}
                 >
                   <SelectTrigger className={errors.dbaState ? "border-red-500" : ""}>
@@ -2404,7 +2553,10 @@ Thank you!`
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="legalState">State</Label>
-                  <Select value={formData.legalState} onValueChange={(value) => updateFormData("legalState", value)}>
+                  <Select
+                    value={formData.legalState || ""} // Add fallback
+                    onValueChange={(value) => updateFormData("legalState", value)}
+                  >
                     <SelectTrigger className={errors.legalState ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select State" />
                     </SelectTrigger>
@@ -2450,15 +2602,17 @@ Thank you!`
     const newTerminalsState = selectedFromSelector.map((t) => {
       const existingTerminal = formData.terminals.find((ft) => ft.name === t.name)
       if (existingTerminal) {
+        // If terminal exists, update quantity but keep originalPrice and current price
         return {
           ...existingTerminal,
           quantity: t.quantity,
         }
       }
+      // If new terminal, add it with originalPrice set to its price
       return {
         name: t.name,
-        price: t.price,
-        originalPrice: t.price,
+        price: t.price, // Current price
+        originalPrice: t.price, // Store original price for discount calculation
         quantity: t.quantity,
       }
     })
@@ -2481,7 +2635,7 @@ Thank you!`
     const updatedTerminals = [...formData.terminals]
     const discount = Number.parseFloat(discountPercent) || 0
     const originalPrice = updatedTerminals[index].originalPrice || 0
-    const newPrice = originalPrice * (1 - discount / 100)
+    const newPrice = originalPrice * (1 - Math.max(0, Math.min(100, discount)) / 100) // Clamp discount between 0 and 100
 
     updatedTerminals[index] = {
       ...updatedTerminals[index],
@@ -2612,7 +2766,7 @@ Thank you!`
                     Math.abs(percentageTotal - 100) <= 1 ? "text-green-600" : "text-yellow-600"
                   }`}
                 >
-                  {percentageTotal}%
+                  {percentageTotal.toFixed(2)}%
                 </span>
               </span>
             </div>
@@ -2887,18 +3041,14 @@ Thank you!`
           {/* Conditional DEBIT pricing options */}
           {formData.acceptDebit === "yes" && (
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-              <p className="text-sm text-blue-900">
-                DEBIT card processing will be enabled with three pricing type options available.
-              </p>
+              <p className="text-sm text-blue-900">DEBIT card processing will be enabled with standard rates.</p>
             </div>
           )}
 
           {/* Conditional EBT pricing options */}
           {formData.acceptEbt === "yes" && (
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-              <p className="text-sm text-blue-900">
-                EBT processing will be enabled with three pricing type options available.
-              </p>
+              <p className="text-sm text-blue-900">EBT processing will be enabled with standard rates.</p>
             </div>
           )}
         </div>
@@ -2939,9 +3089,9 @@ Thank you!`
                   <SelectValue placeholder="Select an option..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="option1">Option 1 - Standard Dual Pricing</SelectItem>
-                  <SelectItem value="option2">Option 2 - Cash Discount Program</SelectItem>
-                  <SelectItem value="option3">Option 3 - Custom Dual Pricing</SelectItem>
+                  <SelectItem value="dual-pricing-standard">Standard Dual Pricing</SelectItem>
+                  <SelectItem value="cash-discount-program">Cash Discount Program</SelectItem>
+                  <SelectItem value="custom-dual-pricing">Custom Dual Pricing</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -3015,7 +3165,7 @@ Thank you!`
                 <div className="space-y-2">
                   <Label>
                     First Name{" "}
-                    <span className={errors[`principal${index}FirstName`] ? "text-slate-500" : "text-red-500"}>*</span>
+                    <span className={errors[`principal${index}FirstName`] ? "text-red-500" : "text-slate-500"}>*</span>
                   </Label>
                   <Input
                     value={principal.firstName}
@@ -3029,7 +3179,7 @@ Thank you!`
                 <div className="space-y-2">
                   <Label>
                     Last Name{" "}
-                    <span className={errors[`principal${index}LastName`] ? "text-slate-500" : "text-red-500"}>*</span>
+                    <span className={errors[`principal${index}LastName`] ? "text-red-500" : "text-slate-500"}>*</span>
                   </Label>
                   <Input
                     value={principal.lastName}
@@ -3054,11 +3204,11 @@ Thank you!`
                 <div className="space-y-2">
                   <Label>
                     Date of Birth{" "}
-                    <span className={errors[`principal${index}Dob`] ? "text-slate-500" : "text-red-500"}>*</span>
+                    <span className={errors[`principal${index}Dob`] ? "text-red-500" : "text-slate-500"}>*</span>
                   </Label>
                   <Input
                     type="date"
-                    value={principal.dob || ""} // Add the || "" fallback
+                    value={principal.dob || ""} // Add the || "" fallback for empty date
                     onChange={(e) => updatePrincipal(principal.id, "dob", e.target.value)}
                     className={errors[`principal${index}Dob`] ? "border-red-500" : ""}
                   />
@@ -3068,7 +3218,7 @@ Thank you!`
                 </div>
                 <div className="space-y-2">
                   <Label>
-                    SSN <span className={errors[`principal${index}Ssn`] ? "text-slate-500" : "text-red-500"}>*</span>
+                    SSN <span className={errors[`principal${index}Ssn`] ? "text-red-500" : "text-slate-500"}>*</span>
                   </Label>
                   <Input
                     value={principal.ssn}
@@ -3085,7 +3235,7 @@ Thank you!`
                 <div className="space-y-2">
                   <Label>
                     Email Address{" "}
-                    <span className={errors[`principal${index}Email`] ? "text-slate-500" : "text-red-500"}>*</span>
+                    <span className={errors[`principal${index}Email`] ? "text-red-500" : "text-slate-500"}>*</span>
                   </Label>
                   <Input
                     type="email"
@@ -3110,7 +3260,7 @@ Thank you!`
                 <div className="space-y-2">
                   <Label>
                     Position in the Organization{" "}
-                    <span className={errors[`principal${index}Position`] ? "text-slate-500" : "text-red-500"}>*</span>
+                    <span className={errors[`principal${index}Position`] ? "text-red-500" : "text-slate-500"}>*</span>
                   </Label>
                   <Input
                     value={principal.position}
@@ -3146,7 +3296,7 @@ Thank you!`
                 <div className="space-y-2">
                   <Label>
                     ID Number{" "}
-                    <span className={errors[`principal${index}GovIdNumber`] ? "text-slate-500" : "text-red-500"}>
+                    <span className={errors[`principal${index}GovIdNumber`] ? "text-red-500" : "text-slate-500"}>
                       *
                     </span>
                   </Label>
@@ -3163,7 +3313,7 @@ Thank you!`
                 <div className="space-y-2">
                   <Label>
                     ID Expiration{" "}
-                    <span className={errors[`principal${index}GovIdExpiration`] ? "text-slate-500" : "text-red-500"}>
+                    <span className={errors[`principal${index}GovIdExpiration`] ? "text-red-500" : "text-slate-500"}>
                       *
                     </span>
                   </Label>
@@ -3181,10 +3331,10 @@ Thank you!`
                 <div className="space-y-2">
                   <Label>
                     Issuing State{" "}
-                    <span className={errors[`principal${index}GovIdState`] ? "text-slate-500" : "text-red-500"}>*</span>
+                    <span className={errors[`principal${index}GovIdState`] ? "text-red-500" : "text-slate-500"}>*</span>
                   </Label>
                   <Select
-                    value={principal.govIdState || ""}
+                    value={principal.govIdState || ""} // Add fallback
                     onValueChange={(v) => updatePrincipal(principal.id, "govIdState", v)}
                   >
                     <SelectTrigger className={errors[`principal${index}GovIdState`] ? "border-red-500" : ""}>
@@ -3302,6 +3452,14 @@ Thank you!`
                   updateFormData("managingMemberEmail", p?.email || "")
                   updateFormData("managingMemberPhone", p?.phone || "")
                   updateFormData("managingMemberPosition", p?.position || "")
+                } else {
+                  // Clear fields if checkbox is unchecked
+                  updateFormData("managingMemberReference", "")
+                  updateFormData("managingMemberFirstName", "")
+                  updateFormData("managingMemberLastName", "")
+                  updateFormData("managingMemberEmail", "")
+                  updateFormData("managingMemberPhone", "")
+                  updateFormData("managingMemberPosition", "")
                 }
               }}
             />
@@ -3317,6 +3475,7 @@ Thank you!`
                 value={formData.managingMemberReference}
                 onValueChange={(value) => {
                   updateFormData("managingMemberReference", value)
+                  // Find the index from the value (e.g., "Principal 1" -> index 0)
                   const idx = Number.parseInt(value.replace("Principal ", ""), 10) - 1
                   const p = principals[idx]
                   if (p) {
@@ -3362,7 +3521,8 @@ Thank you!`
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="managingMemberLastName">
-                    Last Name <span className={!errors.managingLastName ? "text-slate-500" : "text-red-500"}>*</span>
+                    Last Name{" "}
+                    <span className={!errors.managingMemberLastName ? "text-slate-500" : "text-red-500"}>*</span>
                   </Label>
                   <Input
                     id="managingMemberLastName"
@@ -3869,6 +4029,7 @@ Thank you!`
       case "confirmation":
         return renderConfirmationStep()
       default:
+        // Fallback to welcome step if unknown stepId
         return isAgentMode ? renderAgentWelcomeStep() : renderWelcomeStep()
     }
   }
@@ -3878,6 +4039,174 @@ Thank you!`
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }, [currentStep])
+
+  // Renamed from handleAgentAction to more specific functions
+  const handleSendToMerchant = async () => {
+    if (!agentName || agentName.trim() === "") {
+      toast({
+        title: "Agent Name Required",
+        description: "Please enter your agent name before sending the application.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (merchantEmail === "") {
+      // Check for empty string, not just falsy
+      toast({
+        title: "Merchant Email Required",
+        description: "Please enter the merchant's email address to send the invitation.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSubmittingAgentAction(true)
+    setGeneratedLink("") // Clear previous link
+
+    try {
+      let appId = applicationData?.id
+
+      if (!appId) {
+        const createRes = await fetch("/api/generate-merchant-invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agent_email: user?.primaryEmailAddress?.emailAddress,
+            merchant_email: merchantEmail, // Use validated merchantEmail
+            agent_name: agentName.trim(),
+          }),
+        })
+        const createResult = await createRes.json()
+        if (!createResult.success) throw new Error(createResult.error || "Failed to create application.")
+        appId = createResult.inviteId
+        setApplicationData({
+          // Update applicationData to include the new ID
+          id: appId,
+          agent_email: user?.primaryEmailAddress?.emailAddress,
+          dba_email: merchantEmail,
+          status: "draft",
+          created_at: new Date().toISOString(),
+        })
+      }
+
+      const response = await fetch("/api/save-prefill-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationId: appId,
+          formData,
+          principals,
+          merchantEmail,
+          action: "send",
+          uploads,
+          agentName: agentName.trim(),
+        }),
+      })
+
+      const result = await response.json()
+      if (!result.success) throw new Error(result.error || "Failed to send invitation.")
+
+      setGeneratedLink(result.link)
+      toast({
+        title: "Success!",
+        description: "Invitation sent successfully.",
+      })
+
+      // Redirect after a short delay
+      setTimeout(() => {
+        window.location.href = "/invite"
+      }, 1500)
+    } catch (error) {
+      console.error("Send to merchant error:", error)
+      toast({
+        title: "Error sending invitation",
+        description: error instanceof Error ? error.message : "An unknown error occurred.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmittingAgentAction(false)
+    }
+  }
+
+  const handleCopyLink = async () => {
+    if (!agentName || agentName.trim() === "") {
+      toast({
+        title: "Agent Name Required",
+        description: "Please enter your agent name before generating a link.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSubmittingAgentAction(true)
+    setGeneratedLink("") // Clear previous link
+
+    try {
+      let appId = applicationData?.id
+
+      if (!appId) {
+        // Create an invite if one doesn't exist yet
+        const createRes = await fetch("/api/generate-merchant-invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agent_email: user?.primaryEmailAddress?.emailAddress,
+            merchant_email: null, // No merchant email needed for link generation
+            agent_name: agentName.trim(),
+          }),
+        })
+        const createResult = await createRes.json()
+        if (!createResult.success) throw new Error(createResult.error || "Failed to create application.")
+        appId = createResult.inviteId
+        setApplicationData({
+          id: appId,
+          agent_email: user?.primaryEmailAddress?.emailAddress,
+          dba_email: "", // No merchant email yet
+          status: "draft",
+          created_at: new Date().toISOString(),
+        })
+      }
+
+      const response = await fetch("/api/save-prefill-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationId: appId,
+          formData,
+          principals,
+          merchantEmail, // Still needed for potential future use even if not sending directly
+          action: "copy",
+          uploads,
+          agentName: agentName.trim(),
+        }),
+      })
+
+      const result = await response.json()
+      if (!result.success) throw new Error(result.error || "Failed to generate link.")
+
+      setGeneratedLink(result.link)
+      toast({
+        title: "Success!",
+        description: "Link copied to clipboard.",
+      })
+      await navigator.clipboard.writeText(result.link)
+
+      // Redirect to invite page after a short delay
+      setTimeout(() => {
+        window.location.href = "/invite"
+      }, 1500)
+    } catch (error) {
+      console.error("Copy link error:", error)
+      toast({
+        title: "Error copying link",
+        description: error instanceof Error ? error.message : "An unknown error occurred.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmittingAgentAction(false)
+    }
+  }
 
   return (
     <div className="w-full max-w-none md:max-w-4xl mx-auto px-4 sm:px-6 md:p-6 overflow-x-hidden overflow-y-auto">
@@ -3953,12 +4282,15 @@ Thank you!`
                     type="email"
                     placeholder="merchant@example.com"
                     value={merchantEmail}
-                    onChange={(e) => setMerchantEmail(e.target.value)}
-                    className="flex-1"
+                    onChange={(e) => {
+                      setMerchantEmail(e.target.value)
+                      if (errors.merchantEmail) setErrors((prev) => ({ ...prev, merchantEmail: "" })) // Clear error on change
+                    }}
+                    className={`flex-1 ${errors.merchantEmail ? "border-red-500" : ""}`}
                   />
                   <Button
-                    onClick={() => handleAgentAction("send")}
-                    disabled={isSubmittingAgentAction || !merchantEmail}
+                    onClick={handleSendToMerchant} // Use the dedicated send function
+                    disabled={isSubmittingAgentAction || merchantEmail === ""}
                     className="bg-blue-600 hover:bg-blue-700"
                   >
                     {isSubmittingAgentAction ? (
@@ -3969,11 +4301,12 @@ Thank you!`
                     Send Invite
                   </Button>
                 </div>
-                {!merchantEmail && (
+                {merchantEmail === "" && ( // Show message only if email is empty
                   <p className="text-sm text-gray-500 mt-1">
                     Enter the merchant's email address to send the pre-filled application
                   </p>
                 )}
+                {errors.merchantEmail && <p className="text-red-500 text-sm mt-1">{errors.merchantEmail}</p>}
               </div>
 
               <div className="flex items-center">
@@ -3986,15 +4319,15 @@ Thank you!`
                 <Label className="text-sm font-medium">Copy Application Link</Label>
                 <div className="flex gap-2 mt-1">
                   <Input
-                    value={generatedLink || "Click 'Copy Link' to generate a shareable link"}
+                    value={generatedLink || "Click 'Copy Link' to generate"}
                     readOnly
                     className="flex-1 bg-gray-50"
                   />
                   <Button
-                    onClick={() => handleAgentAction("copy")}
+                    onClick={handleCopyLink} // Use the dedicated copy link function
                     variant="outline"
                     disabled={isSubmittingAgentAction}
-                    className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                    className="border-blue-300 text-blue-600 hover:bg-blue-50 bg-transparent"
                   >
                     {isSubmittingAgentAction ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
