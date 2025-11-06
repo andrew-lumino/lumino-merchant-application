@@ -43,8 +43,12 @@ export default function InvitePage() {
   const [sendingEmail, setSendingEmail] = useState(false)
   const [sendingMultiple, setSendingMultiple] = useState(false)
   const [linkEmail, setLinkEmail] = useState("")
+  const [linkEmailError, setLinkEmailError] = useState("") // Declare linkEmailError
   const { toast } = useToast()
   const { user, isLoaded } = useUser()
+
+  const [agentName, setAgentName] = useState("")
+  const [agentNameError, setAgentNameError] = useState("")
 
   // New state for invitation history
   const [invites, setInvites] = useState<Invite[]>([])
@@ -57,16 +61,16 @@ export default function InvitePage() {
 
   // Single email validation
   const [singleEmailError, setSingleEmailError] = useState("")
-  const [linkEmailError, setLinkEmailError] = useState("")
 
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? ""
 
   // Email validation function
   const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+    const emailRegex =
+      /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
     return emailRegex.test(email)
   }
-  
+
   // Character filtering function - only allows valid email characters
   const isValidEmailChar = (char: string): boolean => {
     const validChars = /[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~@-]/
@@ -77,10 +81,8 @@ export default function InvitePage() {
   useEffect(() => {
     if (!isLoaded) return
 
-    const email = user?.email ||
-      user?.primaryEmailAddress?.emailAddress ||
-      user?.emailAddresses?.[0]?.emailAddress ||
-      null
+    const email =
+      user?.email || user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || null
 
     if (!email) {
       setAuthLoading(false)
@@ -114,12 +116,10 @@ export default function InvitePage() {
           return
         }
         const data: { success: boolean; emails?: string[] } = await res.json()
-        
+
         // Check if email is in the list (case-insensitive)
-        const isEmailInList = data.emails?.some(listEmail => 
-          listEmail.toLowerCase() === normalized
-        ) ?? false
-        
+        const isEmailInList = data.emails?.some((listEmail) => listEmail.toLowerCase() === normalized) ?? false
+
         setIsAuthorized(isEmailInList)
         setAuthLoading(false)
       } catch (err) {
@@ -137,30 +137,47 @@ export default function InvitePage() {
   // Fetch invites useEffect (only runs if authorized)
   useEffect(() => {
     if (authLoading || !isAuthorized || !userEmail) return
-    
+
     fetchAgentInvites()
   }, [authLoading, isAuthorized, userEmail])
+
+  useEffect(() => {
+    if (!userEmail) return
+
+    const savedName = localStorage.getItem(`lumino_agent_name_${userEmail}`)
+    if (savedName) {
+      setAgentName(savedName)
+    } else {
+      // Auto-generate name from email
+      const generatedName = userEmail.split("@")[0].toUpperCase().replace(/[._-]/g, " ")
+      setAgentName(generatedName)
+    }
+  }, [userEmail])
+
+  useEffect(() => {
+    if (!userEmail || !agentName) return
+    localStorage.setItem(`lumino_agent_name_${userEmail}`, agentName)
+  }, [agentName, userEmail])
 
   const fetchAgentInvites = async () => {
     setLoadingInvites(true)
     try {
-      
       const response = await fetch("/api/get-agent-invites", {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        credentials: 'include'
+        credentials: "include",
       })
-      
+
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('Error response:', errorText)
+        console.error("Error response:", errorText)
         throw new Error(`HTTP ${response.status}: ${errorText}`)
       }
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
         setInvites(data.invites)
       } else {
@@ -242,8 +259,8 @@ export default function InvitePage() {
     Lumino Team`)
 
     const mailtoLink = `mailto:${merchantEmail}?subject=${subject}&body=${body}`
-    window.open(mailtoLink, '_blank')
-    
+    window.open(mailtoLink, "_blank")
+
     toast({
       title: "Email Client Opened",
       description: `Email draft created for ${merchantEmail}`,
@@ -252,7 +269,7 @@ export default function InvitePage() {
 
   const handleViewApplication = (inviteId: string) => {
     const link = `https://apply.golumino.com/?id=${inviteId}`
-    window.open(link, '_blank', 'noopener,noreferrer')
+    window.open(link, "_blank", "noopener,noreferrer")
   }
 
   const getInviteStatus = (invite: Invite) => {
@@ -281,20 +298,35 @@ export default function InvitePage() {
   }
 
   const generateInviteId = async (email?: string) => {
+    if (!agentName.trim()) {
+      setAgentNameError("Please enter your name")
+      toast({
+        title: "Name Required",
+        description: "Please enter your name before sending invites",
+        variant: "destructive",
+      })
+      return null
+    }
+
     try {
+      console.log("[v0] Generating invite with agent_email:", userEmail, "agent_name:", agentName)
+
       const response = await fetch("/api/generate-merchant-invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           agent_email: userEmail,
+          agent_name: agentName.trim(),
           merchant_email: email || null,
         }),
       })
 
       const data = await response.json()
 
+      console.log("[v0] Generate invite response:", data)
+
       if (data.success) {
-        fetchAgentInvites() // Refresh history after creating a new one
+        fetchAgentInvites()
         return data.inviteId
       }
       throw new Error(data.error || "Failed to generate invite")
@@ -318,7 +350,7 @@ export default function InvitePage() {
 
     setIsLoading(true)
     setLinkEmailError("") // Clear any previous errors
-    
+
     try {
       const inviteId = await generateInviteId(email)
       if (inviteId) {
@@ -361,7 +393,7 @@ export default function InvitePage() {
 
     setSendingEmail(true)
     setSingleEmailError("") // Clear any previous errors
-    
+
     try {
       const inviteId = await generateInviteId(singleEmail)
       if (!inviteId) {
@@ -405,25 +437,28 @@ export default function InvitePage() {
   // Handle link email input changes with validation
   const handleLinkEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    
+
     // Filter out invalid characters
-    const filteredValue = value.split('').filter(char => isValidEmailChar(char)).join('')
-    
+    const filteredValue = value
+      .split("")
+      .filter((char) => isValidEmailChar(char))
+      .join("")
+
     // Check for multiple @ symbols (only one allowed)
     const atCount = (filteredValue.match(/@/g) || []).length
     if (atCount > 1) {
       return // Don't update if trying to add multiple @ symbols
     }
-    
+
     setLinkEmail(filteredValue)
-    
+
     // Clear error when user starts typing
     if (linkEmailError) {
       setLinkEmailError("")
     }
-    
+
     // Validate on blur or when email looks complete
-    if (filteredValue && filteredValue.includes('@') && filteredValue.length > 5) {
+    if (filteredValue && filteredValue.includes("@") && filteredValue.length > 5) {
       if (!validateEmail(filteredValue)) {
         setLinkEmailError("Please enter a valid email address")
       }
@@ -433,14 +468,17 @@ export default function InvitePage() {
   // Handle paste for link email
   const handleLinkEmailPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault()
-    const pastedText = e.clipboardData.getData('text')
-    
+    const pastedText = e.clipboardData.getData("text")
+
     // Take only the first email if multiple are pasted
     const firstEmail = pastedText.split(/[,;\s\n]/)[0].trim()
-    const filteredEmail = firstEmail.split('').filter(char => isValidEmailChar(char)).join('')
-    
+    const filteredEmail = firstEmail
+      .split("")
+      .filter((char) => isValidEmailChar(char))
+      .join("")
+
     setLinkEmail(filteredEmail)
-    
+
     if (filteredEmail && !validateEmail(filteredEmail)) {
       setLinkEmailError("Please enter a valid email address")
     } else {
@@ -451,16 +489,16 @@ export default function InvitePage() {
   // Handle key press for link email
   const handleLinkEmailKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const char = e.key
-    
+
     // Prevent spaces, commas, semicolons, and other separators
-    if (char === ' ' || char === ',' || char === ';' || char === '\n' || char === '\t') {
+    if (char === " " || char === "," || char === ";" || char === "\n" || char === "\t") {
       e.preventDefault()
       return
     }
-    
+
     // Allow backspace, delete, arrow keys, etc.
     if (char.length > 1) return
-    
+
     // Prevent invalid characters
     if (!isValidEmailChar(char)) {
       e.preventDefault()
@@ -477,25 +515,28 @@ export default function InvitePage() {
   // Handle input changes with validation
   const handleSingleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    
+
     // Filter out invalid characters
-    const filteredValue = value.split('').filter(char => isValidEmailChar(char)).join('')
-    
+    const filteredValue = value
+      .split("")
+      .filter((char) => isValidEmailChar(char))
+      .join("")
+
     // Check for multiple @ symbols (only one allowed)
     const atCount = (filteredValue.match(/@/g) || []).length
     if (atCount > 1) {
       return // Don't update if trying to add multiple @ symbols
     }
-    
+
     setSingleEmail(filteredValue)
-    
+
     // Clear error when user starts typing
     if (singleEmailError) {
       setSingleEmailError("")
     }
-    
+
     // Validate on blur or when email looks complete
-    if (filteredValue && filteredValue.includes('@') && filteredValue.length > 5) {
+    if (filteredValue && filteredValue.includes("@") && filteredValue.length > 5) {
       if (!validateEmail(filteredValue)) {
         setSingleEmailError("Please enter a valid email address")
       }
@@ -505,14 +546,17 @@ export default function InvitePage() {
   // Handle paste to clean up pasted content
   const handleSingleEmailPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault()
-    const pastedText = e.clipboardData.getData('text')
-    
+    const pastedText = e.clipboardData.getData("text")
+
     // Take only the first email if multiple are pasted
     const firstEmail = pastedText.split(/[,;\s\n]/)[0].trim()
-    const filteredEmail = firstEmail.split('').filter(char => isValidEmailChar(char)).join('')
-    
+    const filteredEmail = firstEmail
+      .split("")
+      .filter((char) => isValidEmailChar(char))
+      .join("")
+
     setSingleEmail(filteredEmail)
-    
+
     if (filteredEmail && !validateEmail(filteredEmail)) {
       setSingleEmailError("Please enter a valid email address")
     } else {
@@ -523,16 +567,16 @@ export default function InvitePage() {
   // Handle key press to prevent invalid characters
   const handleSingleEmailKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const char = e.key
-    
+
     // Prevent spaces, commas, semicolons, and other separators
-    if (char === ' ' || char === ',' || char === ';' || char === '\n' || char === '\t') {
+    if (char === " " || char === "," || char === ";" || char === "\n" || char === "\t") {
       e.preventDefault()
       return
     }
-    
+
     // Allow backspace, delete, arrow keys, etc.
     if (char.length > 1) return
-    
+
     // Prevent invalid characters
     if (!isValidEmailChar(char)) {
       e.preventDefault()
@@ -545,7 +589,8 @@ export default function InvitePage() {
       .map((email) => email.trim())
       .filter((email) => email && email.includes("@"))
       .filter((email) => {
-        const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+        const emailRegex =
+          /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
         return emailRegex.test(email)
       })
 
@@ -588,31 +633,29 @@ export default function InvitePage() {
           description: `${data.results.successful} succeeded, ${data.results.failed} failed. Check your email for details.`,
           variant: "destructive",
         })
-        
+
         // Show detailed error list
         if (data.results.failedEmails && data.results.failedEmails.length > 0) {
           console.error("Failed emails:", data.results.failedEmails)
-          
+
           // Optional: Show a modal or alert with failed emails
           const failedList = data.results.failedEmails
             .map((f: { email: string; error: string }) => `${f.email}: ${f.error}`)
-            .join('\n')
-          
+            .join("\n")
+
           toast({
             title: "Failed Invitations",
             description: (
               <div className="mt-2 space-y-1">
                 <p className="text-sm">The following emails failed:</p>
-                <pre className="text-xs bg-gray-100 p-2 rounded max-h-40 overflow-auto">
-                  {failedList}
-                </pre>
+                <pre className="text-xs bg-gray-100 p-2 rounded max-h-40 overflow-auto">{failedList}</pre>
               </div>
             ),
             variant: "destructive",
             duration: 10000, // Show longer for failed emails
           })
         }
-        
+
         fetchAgentInvites()
       } else {
         // Complete failure
@@ -694,13 +737,11 @@ export default function InvitePage() {
             <CardTitle className="text-2xl font-medium">Access Denied</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-lg text-gray-700">
-              You don't have permission to access this page.
-            </p>
+            <p className="text-lg text-gray-700">You don't have permission to access this page.</p>
             <p className="text-gray-600">
               This page is only accessible to Lumino team members and authorized partners.
             </p>
-            
+
             <div className="space-y-3">
               <SignInButton mode="modal" redirectUrl="/invite">
                 <Button className="w-full bg-blue-600 hover:bg-blue-700">
@@ -708,8 +749,8 @@ export default function InvitePage() {
                   Partner Sign-In
                 </Button>
               </SignInButton>
-              
-              <Button asChild variant="outline" className="w-full">
+
+              <Button asChild variant="outline" className="w-full bg-transparent">
                 <a href="mailto:support@golumino.com">
                   <Mail className="mr-2 h-4 w-4" />
                   Contact Support
@@ -729,16 +770,35 @@ export default function InvitePage() {
         <p className="sm:text-lg text-sm text-gray-600 mt-2">Generate and send merchant application invitations</p>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <div className="flex items-center gap-2 text-blue-800">
-          <User className="h-4 w-4" />
-          <span className="font-medium">Account Manager:</span>
-          <span>{userEmail}</span>
-        </div>
-        <p className="text-xs text-blue-600 mt-1">
-          All invites will be automatically associated with this account manager for commission tracking.
-        </p>
-      </div>
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="pt-6">
+          <div className="space-y-2">
+            <Label htmlFor="agentName" className="text-blue-900 font-medium">
+              Your Name (for tracking)
+            </Label>
+            <Input
+              id="agentName"
+              type="text"
+              placeholder="JOHN SMITH"
+              value={agentName}
+              onChange={(e) => {
+                const value = e.target.value.toUpperCase()
+                setAgentName(value)
+                if (agentNameError) setAgentNameError("")
+              }}
+              className={`bg-white ${agentNameError ? "border-red-500" : "border-blue-300"}`}
+            />
+            {agentNameError && <p className="text-sm text-red-600">{agentNameError}</p>}
+            <div className="flex items-center gap-2 text-sm text-blue-700">
+              <User className="h-4 w-4" />
+              <span>{userEmail}</span>
+            </div>
+            <p className="text-xs text-blue-600">
+              This name will be saved and used for all future invites. All invites will be tracked to your account.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="single" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -753,7 +813,7 @@ export default function InvitePage() {
               <CardDescription>Create a single invite link or send it directly to an email address</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* <div className="space-y-2">
+              <div className="space-y-2">
                 <Label htmlFor="linkEmail">Optional: Associate with Email</Label>
                 <div className="space-y-2">
                   <Input
@@ -766,14 +826,12 @@ export default function InvitePage() {
                     onPaste={handleLinkEmailPaste}
                     className={linkEmailError ? "border-red-500 focus:ring-red-500" : ""}
                   />
-                  {linkEmailError && (
-                    <p className="text-sm text-red-600">{linkEmailError}</p>
-                  )}
+                  {linkEmailError && <p className="text-sm text-red-600">{linkEmailError}</p>}
                 </div>
                 <div className="flex gap-2">
-                  <Button 
-                    onClick={() => handleGenerateSingleLink(linkEmail)} 
-                    disabled={isLoading || (linkEmail && !!linkEmailError)} 
+                  <Button
+                    onClick={() => handleGenerateSingleLink(linkEmail)}
+                    disabled={isLoading || (linkEmail && !!linkEmailError)}
                     className="flex-1"
                   >
                     <LinkIcon className="mr-2 h-4 w-4" />
@@ -796,11 +854,11 @@ export default function InvitePage() {
                     Link generated successfully! Share this with your merchant prospect.
                   </p>
                 </div>
-              )} */}
+              )}
 
               <div className="border-t pt-4">
                 <div className="space-y-2">
-                  {/* <Label htmlFor="singleEmail">Or send directly to email</Label> */}
+                  <Label htmlFor="singleEmail">Or send directly to email</Label>
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <Input
@@ -813,12 +871,10 @@ export default function InvitePage() {
                         onPaste={handleSingleEmailPaste}
                         className={singleEmailError ? "border-red-500 focus:ring-red-500" : ""}
                       />
-                      {singleEmailError && (
-                        <p className="text-sm text-red-600 mt-1">{singleEmailError}</p>
-                      )}
+                      {singleEmailError && <p className="text-sm text-red-600 mt-1">{singleEmailError}</p>}
                     </div>
-                    <Button 
-                      onClick={handleSendSingleEmail} 
+                    <Button
+                      onClick={handleSendSingleEmail}
                       disabled={sendingEmail || !singleEmail || !!singleEmailError}
                     >
                       <Mail className="mr-2 h-4 w-4" />
@@ -951,7 +1007,7 @@ export default function InvitePage() {
                                 >
                                   <Mail className="h-3 w-3" />
                                 </Button>
-                                
+
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -960,7 +1016,7 @@ export default function InvitePage() {
                                 >
                                   <Copy className="h-3 w-3" />
                                 </Button>
-                                
+
                                 <Button
                                   size="sm"
                                   variant="outline"

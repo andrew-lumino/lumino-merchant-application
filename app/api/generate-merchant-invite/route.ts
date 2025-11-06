@@ -11,7 +11,11 @@ export async function POST(req: Request) {
     const body = await req.json()
     console.log("Request body:", body)
 
-    const { agent_email, merchant_email } = body
+    const { agent_email, agent_name, merchant_email } = body
+
+    console.log("[v0] Received agent_email:", agent_email)
+    console.log("[v0] Received agent_name:", agent_name)
+    console.log("[v0] Received merchant_email:", merchant_email)
 
     if (agent_email && !validateEmail(agent_email)) {
       return NextResponse.json({ success: false, error: "Invalid agent email format" }, { status: 400 })
@@ -20,7 +24,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Invalid merchant email format" }, { status: 400 })
     }
 
+    if (!agent_name || !agent_name.trim()) {
+      return NextResponse.json({ success: false, error: "Agent name is required" }, { status: 400 })
+    }
+
     console.log("Agent email:", agent_email)
+    console.log("Agent name:", agent_name)
     console.log("Merchant email:", merchant_email)
 
     const initialStatus = merchant_email ? "invited" : "draft"
@@ -28,6 +37,7 @@ export async function POST(req: Request) {
 
     const insertData = {
       agent_email: agent_email || null,
+      agent_name: agent_name.trim(),
       status: initialStatus,
       dba_email: merchant_email || null,
       created_at: new Date().toISOString(),

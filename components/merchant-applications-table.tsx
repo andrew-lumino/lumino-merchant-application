@@ -405,7 +405,8 @@ export default function MerchantApplicationsTable({
             result = (app.status || "").toLowerCase().includes(value)
             break
           case "agent":
-            result = (extractUsername(app.agent_email) || "direct").toLowerCase().includes(value)
+            const agentIdentifier = app.agent_name || extractUsername(app.agent_email) || "direct"
+            result = agentIdentifier.toLowerCase().includes(value)
             break
           case "id":
             result = (app.id || "").toLowerCase() === value
@@ -456,8 +457,7 @@ export default function MerchantApplicationsTable({
             if (value === "notes") {
               result = !(app.notes || []).length
             } else if (value === "agent") {
-              const username = extractUsername(app.agent_email) || "direct"
-              result = !app.agent_email || username === "direct"
+              result = !app.agent_name && !app.agent_email
             } else {
               result = !(app as Record<string, unknown>)[field]
             }
@@ -473,7 +473,7 @@ export default function MerchantApplicationsTable({
           app.legal_name,
           app.dba_email,
           app.business_type,
-          extractUsername(app.agent_email) || "direct",
+          app.agent_name || extractUsername(app.agent_email) || "direct",
           getPrincipalData(app.principals, "name"),
           (app.terminals || []).map((t: any) => t.name).join(" "),
         ].some((field) => (field || "").toLowerCase().includes(generalValue))
@@ -788,7 +788,9 @@ export default function MerchantApplicationsTable({
                   <TableCell>{new Date(app.created_at).toLocaleDateString()}</TableCell>
                   <TableCell>{app.dba_name || "-"}</TableCell>
                   <TableCell>{app.dba_email || "-"}</TableCell>
-                  <TableCell>{extractUsername(app.agent_email)?.toUpperCase() || "DIRECT"}</TableCell>
+                  <TableCell>
+                    {app.agent_name || extractUsername(app.agent_email) || app.agent_email || "Unknown"}
+                  </TableCell>
                   <TableCell>{getStatusBadge(app.status)}</TableCell>
                   <TableCell className="text-right">
                     <Dialog
@@ -856,9 +858,9 @@ export default function MerchantApplicationsTable({
                                 </span>
                                 <span className="block">
                                   Account Manager:{" "}
-                                  {selectedApplication.agent_email
-                                    ? selectedApplication.agent_email.toUpperCase()
-                                    : "DIRECT"}
+                                  {selectedApplication.agent_name ||
+                                    extractUsername(selectedApplication.agent_email) ||
+                                    "DIRECT"}
                                 </span>
                               </div>
                             </div>
@@ -887,13 +889,11 @@ export default function MerchantApplicationsTable({
                                     </div>
                                     <div>
                                       <strong>Federal Tax ID:</strong>
-                                      <SensitiveField
-                                        value={selectedApplication.federal_tax_id}
-                                        maskPattern="ssn"
-                                      />
+                                      <SensitiveField value={selectedApplication.federal_tax_id} maskPattern="ssn" />
                                     </div>
                                     <div>
-                                      <strong>Phone:</strong> <PhoneNumber value={selectedApplication.dba_phone || null} />
+                                      <strong>Phone:</strong>{" "}
+                                      <PhoneNumber value={selectedApplication.dba_phone || null} />
                                     </div>
                                     <div>
                                       <strong>Website:</strong> {selectedApplication.website_url || "-"}
@@ -1160,16 +1160,19 @@ export default function MerchantApplicationsTable({
                                                   <strong>Equity:</strong> {principal.equity || "-"}%
                                                 </div>
                                                 <div>
-                                                  <strong>Phone:</strong> <PhoneNumber value={principal.phone || null} />
+                                                  <strong>Phone:</strong>{" "}
+                                                  <PhoneNumber value={principal.phone || null} />
                                                 </div>
                                                 <div>
                                                   <strong>Address:</strong> {(() => {
                                                     const addressParts = [
                                                       principal.addressLine1,
                                                       principal.addressLine2,
-                                                      [principal.city, principal.state, principal.zip].filter(Boolean).join(', ')
+                                                      [principal.city, principal.state, principal.zip]
+                                                        .filter(Boolean)
+                                                        .join(", "),
                                                     ].filter(Boolean)
-                                                    return addressParts.length > 0 ? addressParts.join(', ') : "-"
+                                                    return addressParts.length > 0 ? addressParts.join(", ") : "-"
                                                   })()}
                                                 </div>
                                                 <div>
