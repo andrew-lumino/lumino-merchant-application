@@ -146,7 +146,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     console.log("Request body keys:", Object.keys(body))
 
-    const { applicationId, formData, principals, merchantEmail, action, uploads, agentName } = body
+    const { applicationId, formData, principals, merchantEmail, action, uploads } = body
 
     const user = await currentUser()
     const agentEmail = user?.email ?? user?.emailAddresses?.[0]?.emailAddress ?? user?.primaryEmailAddressId ?? ""
@@ -225,11 +225,6 @@ export async function POST(request: Request) {
 
     if (agentEmail) {
       updateData.agent_email = agentEmail
-    }
-
-    if (agentName) {
-      updateData.agent_name = agentName
-      console.log("✅ Agent name included:", agentName)
     }
 
     // ✅ Remove any undefined/null values that might cause issues (except for numeric nulls which are ok)

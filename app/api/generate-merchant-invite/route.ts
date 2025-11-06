@@ -24,8 +24,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Invalid merchant email format" }, { status: 400 })
     }
 
-    if (!agent_name || !agent_name.trim()) {
-      return NextResponse.json({ success: false, error: "Agent name is required" }, { status: 400 })
+    if (!agent_email && (!agent_name || !agent_name.trim())) {
+      return NextResponse.json(
+        { success: false, error: "Agent name is required when email is not available" },
+        { status: 400 },
+      )
     }
 
     console.log("Agent email:", agent_email)
@@ -37,7 +40,7 @@ export async function POST(req: Request) {
 
     const insertData = {
       agent_email: agent_email || null,
-      agent_name: agent_name.trim(),
+      agent_name: agent_name?.trim() || null, // Make agent_name optional
       status: initialStatus,
       dba_email: merchant_email || null,
       created_at: new Date().toISOString(),
