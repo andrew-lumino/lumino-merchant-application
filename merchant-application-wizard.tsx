@@ -527,6 +527,11 @@ export default function MerchantApplicationWizard() {
     const normalized = (email ?? "").toLowerCase()
     const isLuminoStaff = normalized.endsWith("@golumino.com")
 
+    console.log("[v0] User email from Clerk:", email)
+    console.log("[v0] Normalized email:", normalized)
+    console.log("[v0] Is Lumino staff:", isLuminoStaff)
+    console.log("[v0] Invite ID:", inviteId)
+
     // Define the main logic that runs after we determine agent status
     const handleAgentStatusDetermined = (finalIsAgentMode: boolean) => {
       setIsAgentMode(finalIsAgentMode)
@@ -632,25 +637,31 @@ export default function MerchantApplicationWizard() {
     const ac = new AbortController()
     ;(async () => {
       try {
+        console.log("[v0] Fetching partner emails from API...")
         const res = await fetch("/api/get-partner-emails", {
           method: "GET",
           cache: "no-store",
           signal: ac.signal,
         })
         if (!res.ok) {
-          console.error("get-partner-emails failed:", res.status)
+          console.error("[v0] get-partner-emails failed:", res.status)
           handleAgentStatusDetermined(false)
           return
         }
         const data: { success: boolean; emails?: string[] } = await res.json()
 
+        console.log("[v0] Partner emails received:", data.emails)
+        console.log("[v0] Checking if email is in list:", normalized)
+
         // Check if email is in the list (case-insensitive)
         const isEmailInList = data.emails?.some((listEmail) => listEmail.toLowerCase() === normalized) ?? false
+
+        console.log("[v0] Is email in partner list:", isEmailInList)
 
         handleAgentStatusDetermined(isEmailInList)
       } catch (err) {
         if ((err as any)?.name !== "AbortError") {
-          console.error("get-partner-emails error:", err)
+          console.error("[v0] get-partner-emails error:", err)
         }
         handleAgentStatusDetermined(false)
       }
