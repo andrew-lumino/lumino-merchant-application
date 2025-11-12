@@ -1467,6 +1467,11 @@ export default function MerchantApplicationWizard() {
         id: applicationData?.id,
         principals,
         terminals: formData.terminals,
+        
+        // 🔥 ADD THESE TWO LINES 🔥
+        agent_email: userEmail || formData.agentEmail, // Use Clerk email or fallback
+        agent_name: agentName || userEmail?.split("@")[0].toUpperCase() || "AGENT", // Use saved name or generate
+        
         uploads: Object.fromEntries(
           Object.entries(uploads)
             .map(([key, upload]) => [

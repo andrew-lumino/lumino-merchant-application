@@ -1,3 +1,4 @@
+// get-partner-emails
 import { type NextRequest, NextResponse } from "next/server"
 import Airtable from "airtable"
 
@@ -48,8 +49,19 @@ async function fetchEmailsFromTable(tableId: string, viewId: string, emailField:
       next()
     })
 
+  console.log(`[v0] Raw records from ${tableId}:`, JSON.stringify(records, null, 2))
+
   // Extract and normalize emails from this table
-  return records.map((r) => toEmail((r.fields as any)[emailField])).filter((e): e is string => Boolean(e))
+  const emails = records
+    .map((r) => {
+      const rawValue = (r.fields as any)[emailField]
+      const normalizedEmail = toEmail(rawValue)
+      console.log(`[v0] Field "${emailField}" - Raw: "${rawValue}" → Normalized: "${normalizedEmail}"`)
+      return normalizedEmail
+    })
+    .filter((e): e is string => Boolean(e))
+
+  return emails
 }
 
 export async function GET(request: NextRequest) {
