@@ -54,6 +54,11 @@ async function fetchEmailsFromTable(tableId: string, viewId: string, emailField:
 
 export async function GET(request: NextRequest) {
   try {
+    if (!process.env.AIRTABLE_API_KEY) {
+      console.error("[v0] AIRTABLE_API_KEY is missing")
+      return NextResponse.json({ success: false, error: "Airtable API key not configured." }, { status: 500 })
+    }
+
     console.log("[v0] Fetching partner emails from Airtable...")
 
     // Fetch emails from both tables in parallel
@@ -71,13 +76,14 @@ export async function GET(request: NextRequest) {
     const allEmails = Array.from(new Set([...partnerEmails, ...agentEmails]))
 
     console.log("[v0] Total unique emails:", allEmails.length)
-    console.log("[v0] Combined email list:", allEmails)
 
     return NextResponse.json({ success: true, emails: allEmails })
   } catch (err) {
     console.error("[v0] Error fetching partner emails from Airtable:", err)
+    const errorMessage = err instanceof Error ? err.message : "Unknown error"
+    console.error("[v0] Detailed error:", errorMessage)
     return NextResponse.json(
-      { success: false, error: "Failed to fetch partner emails from Airtable." },
+      { success: false, error: "Failed to fetch partner emails from Airtable.", details: errorMessage },
       { status: 500 },
     )
   }

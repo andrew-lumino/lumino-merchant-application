@@ -645,18 +645,33 @@ export default function MerchantApplicationWizard() {
         })
         if (!res.ok) {
           console.error("[v0] get-partner-emails failed:", res.status)
+          const errorText = await res.text()
+          console.error("[v0] Error response:", errorText)
           handleAgentStatusDetermined(false)
           return
         }
         const data: { success: boolean; emails?: string[] } = await res.json()
 
-        console.log("[v0] Partner emails received:", data.emails)
+        console.log("[v0] Partner emails API response:", data)
         console.log("[v0] Checking if email is in list:", normalized)
 
-        // Check if email is in the list (case-insensitive)
-        const isEmailInList = data.emails?.some((listEmail) => listEmail.toLowerCase() === normalized) ?? false
+        const emailList = data.emails || []
+        console.log("[v0] Email list from API:", emailList)
+
+        const isEmailInList = emailList.some((listEmail) => {
+          const match = listEmail.toLowerCase() === normalized
+          if (match) {
+            console.log("[v0] MATCH FOUND:", listEmail, "===", normalized)
+          }
+          return match
+        })
 
         console.log("[v0] Is email in partner list:", isEmailInList)
+        console.log("[v0] Total emails checked:", emailList.length)
+
+        if (emailList.length === 0 && !isLuminoStaff) {
+          console.warn("[v0] WARNING: Partner emails API returned empty list")
+        }
 
         handleAgentStatusDetermined(isEmailInList)
       } catch (err) {
