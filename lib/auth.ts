@@ -1,7 +1,13 @@
 import { currentUser } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 
-export async function requireAuth() {
+// Function to check admin status
+export async function isAdmin(email: string): boolean {
+  return email.endsWith("@golumino.com")
+}
+
+// Updated requireAuth to allow all authenticated users, with admin flag
+export async function requireAuth(requireAdminAccess = true) {
   const user = await currentUser()
 
   if (!user) {
@@ -10,17 +16,20 @@ export async function requireAuth() {
       response: NextResponse.json({ error: "Unauthorized - Authentication required" }, { status: 401 }),
       user: null,
       email: null,
+      isAdmin: false,
     }
   }
 
-  const email = user.email ?? user.emailAddresses?.[0]?.emailAddress ?? user.primaryEmailAddressId ?? ""
+  const email = user.emailAddresses?.[0]?.emailAddress ?? ""
+  const userIsAdmin = await isAdmin(email)
 
-  if (!email.endsWith("@golumino.com")) {
+  if (requireAdminAccess && !userIsAdmin) {
     return {
       authorized: false,
       response: NextResponse.json({ error: "Forbidden - Admin access required" }, { status: 403 }),
       user,
       email,
+      isAdmin: false,
     }
   }
 
@@ -29,9 +38,11 @@ export async function requireAuth() {
     response: null,
     user,
     email,
+    isAdmin: userIsAdmin,
   }
 }
 
+// Existing code remains unchanged
 export function validateEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return emailRegex.test(email)

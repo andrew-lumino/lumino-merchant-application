@@ -444,6 +444,7 @@ export default function MerchantApplicationWizard() {
     }
   }
 
+  // Initial load - no debouncing
   useEffect(() => {
     const key = getLocalStorageKey()
     if (!key) return
@@ -477,25 +478,30 @@ export default function MerchantApplicationWizard() {
     }
   }, []) // Only run once on mount
 
+  // Debounced auto-save
   useEffect(() => {
     const key = getLocalStorageKey()
-    if (!key || !isAgentMode) return // Only save for agents
+    if (!key || !isAgentMode) return
 
-    try {
-      const dataToSave = {
-        timestamp: new Date().toISOString(),
-        formData,
-        principals,
-        uploads,
-        currentStep,
+    const debounceTimer = setTimeout(() => {
+      try {
+        const dataToSave = {
+          timestamp: new Date().toISOString(),
+          formData,
+          principals,
+          uploads,
+          currentStep,
+        }
+        localStorage.setItem(key, JSON.JSON.stringify(dataToSave))
+        console.log("[v0] Saved draft to localStorage")
+
+        saveDraftToDatabase()
+      } catch (error) {
+        console.error("[v0] Failed to save draft:", error)
       }
-      localStorage.setItem(key, JSON.stringify(dataToSave))
-      console.log("[v0] Saved draft to localStorage")
+    }, 1000) // 1 second debounce - saves as you type but not on every keystroke
 
-      saveDraftToDatabase()
-    } catch (error) {
-      console.error("[v0] Failed to save draft:", error)
-    }
+    return () => clearTimeout(debounceTimer)
   }, [formData, principals, uploads, currentStep])
 
   useEffect(() => {

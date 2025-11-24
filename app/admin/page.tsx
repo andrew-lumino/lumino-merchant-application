@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useUser } from "@clerk/nextjs"
 import MerchantApplicationsTable from "@/components/merchant-applications-table"
 import ApplicationCardsManager from "@/components/application-cards-manager"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -10,8 +11,13 @@ type Application = Record<string, any>
 export default function AdminPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
+  const { user, isLoaded } = useUser()
+  const userEmail = user?.emailAddresses?.[0]?.emailAddress ?? ""
+  const isAdmin = userEmail.endsWith("@golumino.com")
 
   useEffect(() => {
+    if (!isLoaded) return
+
     const fetchApplications = async () => {
       try {
         const response = await fetch("/api/merchant-applications")
@@ -25,13 +31,15 @@ export default function AdminPage() {
     }
 
     fetchApplications()
-  }, [])
+  }, [isLoaded])
 
-  if (loading) {
+  if (loading || !isLoaded) {
     return (
       <div className="max-w-7xl mx-auto p-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Merchant Applications</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            {isAdmin ? "Merchant Applications" : "My Applications"}
+          </h1>
           <p>Loading applications...</p>
         </div>
       </div>
@@ -40,9 +48,16 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Merchant Applications</h1>
-        <p className="text-lg text-gray-600 mt-2">Manage and review merchant applications</p>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          {isAdmin ? "Applications Manager" : "My Applications"}
+        </h1>
+        <p className="text-gray-600">
+          {isAdmin ? "Manage all merchant applications across your team" : "View and manage your merchant applications"}
+        </p>
+        <p className="text-sm text-gray-500 mt-2">
+          Logged in as: {userEmail} {isAdmin && <span className="text-blue-600 font-medium">(Admin)</span>}
+        </p>
       </div>
 
       <Tabs defaultValue="dashboard" className="w-full">

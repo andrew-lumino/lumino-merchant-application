@@ -5,7 +5,7 @@ import { requireAuth } from "@/lib/auth"
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function GET(request: Request) {
-  const auth = await requireAuth()
+  const auth = await requireAuth(false)
   if (!auth.authorized) {
     return auth.response
   }
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
     const offset = (page - 1) * limit
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("merchant_applications")
       .select(
         `
@@ -33,7 +33,12 @@ export async function GET(request: Request) {
       `,
       )
       .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1)
+
+    if (!auth.isAdmin) {
+      query = query.eq("agent_email", auth.email)
+    }
+
+    const { data, error } = await query.range(offset, offset + limit - 1)
 
     if (error) {
       console.error("Supabase error:", error)
