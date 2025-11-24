@@ -14,7 +14,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { applicationId, formData, principals, uploads, currentStep, timestamp } = body
+    const { applicationId, formData, principals, uploads, currentStep } = body
 
     console.log("[v0] Saving draft for application:", applicationId)
 
@@ -22,6 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Application ID required" }, { status: 400 })
     }
 
+    // Check if application exists
     const { data: existingApp, error: fetchError } = await supabase
       .from("merchant_applications")
       .select("id, agent_email")
@@ -33,14 +34,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Application not found" }, { status: 404 })
     }
 
+    // Check permissions
     const isAdmin = userEmail.endsWith("@golumino.com")
     if (!isAdmin && existingApp.agent_email !== userEmail) {
       return NextResponse.json({ success: false, error: "Access denied" }, { status: 403 })
     }
 
-    const updateData: any = {
+    const updateData: Record<string, any> = {
       updated_at: new Date().toISOString(),
-      status: formData.status || "drafted",
+    }
+
+    // Only set status if not already submitted/approved
+    if (formData?.status && !["submitted", "approved"].includes(existingApp.status)) {
+      updateData.status = formData.status
+    } else if (!existingApp.status || existingApp.status === "invited") {
+      updateData.status = "drafted"
     }
 
     const fieldMapping: Record<string, string> = {
@@ -64,17 +72,10 @@ export async function POST(request: Request) {
       legalZip: "legal_zip",
       legalZipExtended: "legal_zip_extended",
       businessType: "business_type",
-      monthlyVolume: "monthly_volume",
-      averageTicket: "average_ticket",
-      highestTicket: "highest_ticket",
       refundPolicy: "refund_policy",
       previousProcessor: "previous_processor",
       reasonForTermination: "reason_for_termination",
-      pctCardSwiped: "pct_card_swiped",
-      pctManualImprint: "pct_manual_imprint",
-      pctManualNoImprint: "pct_manual_no_imprint",
       seasonalBusiness: "seasonal_business",
-      seasonalMonths: "seasonal_months",
       acceptAmex: "accept_amex",
       acceptDebit: "accept_debit",
       acceptEbt: "accept_ebt",
@@ -97,25 +98,57 @@ export async function POST(request: Request) {
       legalDiffers: "legal_differs",
     }
 
-    for (const [camelKey, snakeKey] of Object.entries(fieldMapping)) {
-      if (formData[camelKey] !== undefined && formData[camelKey] !== null) {
-        updateData[snakeKey] = formData[camelKey]
+    const numericFields: Record<string, string> = {
+      monthlyVolume: "monthly_volume",
+      averageTicket: "average_ticket",
+      highestTicket: "highest_ticket",
+      pctCardSwiped: "pct_card_swiped",
+      pctManualImprint: "pct_manual_imprint",
+      pctManualNoImprint: "pct_manual_no_imprint",
+    }
+
+    // Process text/boolean fields
+    if (formData) {
+      for (const [camelKey, snakeKey] of Object.entries(fieldMapping)) {
+        const value = formData[camelKey]
+        if (value !== undefined && value !== null && value !== "") {
+          updateData[snakeKey] = value
+        }
+      }
+
+      // Process numeric fields - convert to number or null
+      for (const [camelKey, snakeKey] of Object.entries(numericFields)) {
+        const value = formData[camelKey]
+        if (value !== undefined && value !== null && value !== "") {
+          const numValue = Number.parseFloat(String(value).replace(/[^0-9.-]/g, ""))
+          if (!isNaN(numValue)) {
+            updateData[snakeKey] = numValue
+          }
+        }
+      }
+
+      // Handle seasonal_months array
+      if (formData.seasonalMonths && Array.isArray(formData.seasonalMonths)) {
+        updateData.seasonal_months = formData.seasonalMonths
+      }
+
+      // Handle terminals as JSONB
+      if (formData.terminals) {
+        updateData.terminals = formData.terminals
+      }
+
+      // Handle notes as JSONB
+      if (formData.notes) {
+        updateData.notes = formData.notes
       }
     }
 
-    if (principals && Array.isArray(principals)) {
+    // Handle principals array
+    if (principals && Array.isArray(principals) && principals.length > 0) {
       updateData.principals = principals
     }
 
-    if (formData.terminals) {
-      updateData.terminals = formData.terminals
-    }
-
-    if (formData.notes) {
-      updateData.notes = formData.notes
-    }
-
-    console.log("[v0] Updating with data:", Object.keys(updateData))
+    console.log("[v0] Updating with fields:", Object.keys(updateData))
 
     const { data, error } = await supabase
       .from("merchant_applications")
@@ -124,14 +157,14 @@ export async function POST(request: Request) {
       .select()
 
     if (error) {
-      console.error("[v0] Error saving draft:", error)
+      console.error("[v0] Error saving draft:", error.message, error.details, error.hint)
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 
     console.log("[v0] Draft saved successfully")
     return NextResponse.json({ success: true, data })
-  } catch (error) {
-    console.error("[v0] Error in save-draft:", error)
-    return NextResponse.json({ success: false, error: "Failed to save draft" }, { status: 500 })
+  } catch (error: any) {
+    console.error("[v0] Error in save-draft:", error?.message || error)
+    return NextResponse.json({ success: false, error: error?.message || "Failed to save draft" }, { status: 500 })
   }
 }
