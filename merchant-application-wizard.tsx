@@ -492,7 +492,8 @@ export default function MerchantApplicationWizard() {
           uploads,
           currentStep,
         }
-        localStorage.setItem(key, JSON.JSON.stringify(dataToSave))
+        // </CHANGE> Fixed typo: JSON.JSON.stringify -> JSON.stringify
+        localStorage.setItem(key, JSON.stringify(dataToSave))
         console.log("[v0] Saved draft to localStorage")
 
         saveDraftToDatabase()
