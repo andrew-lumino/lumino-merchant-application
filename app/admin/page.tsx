@@ -6,23 +6,37 @@ import MerchantApplicationsTable from "@/components/merchant-applications-table"
 import ApplicationCardsManager from "@/components/application-cards-manager"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+const ADMIN_USERS = ["andrew", "giorgio", "zachry", "david", "garrett", "priscilla", "wesley"]
+
 type Application = Record<string, any>
 
 export default function AdminPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
+  const [meta, setMeta] = useState<{ isAdmin: boolean; userEmail: string; total: number; filtered: boolean } | null>(
+    null,
+  )
   const { user, isLoaded } = useUser()
   const userEmail = user?.emailAddresses?.[0]?.emailAddress ?? ""
-  const isAdmin = userEmail.endsWith("@golumino.com")
+
+  const emailPrefix = userEmail.toLowerCase().split("@")[0]
+  const isAdmin = userEmail.toLowerCase().endsWith("@golumino.com") && ADMIN_USERS.includes(emailPrefix)
 
   useEffect(() => {
     if (!isLoaded) return
 
     const fetchApplications = async () => {
       try {
-        const response = await fetch("/api/merchant-applications")
+        const response = await fetch("/api/merchant-applications?loadAll=true")
         const data = await response.json()
-        setApplications(data)
+
+        if (data.applications) {
+          setApplications(data.applications)
+          setMeta(data.meta)
+        } else if (Array.isArray(data)) {
+          // Backwards compatibility
+          setApplications(data)
+        }
       } catch (error) {
         console.error("Error fetching applications:", error)
       } finally {
@@ -38,7 +52,7 @@ export default function AdminPage() {
       <div className="max-w-7xl mx-auto p-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            {isAdmin ? "Merchant Applications" : "My Applications"}
+            {isAdmin ? "Applications Manager" : "My Applications"}
           </h1>
           <p>Loading applications...</p>
         </div>
@@ -56,7 +70,12 @@ export default function AdminPage() {
           {isAdmin ? "Manage all merchant applications across your team" : "View and manage your merchant applications"}
         </p>
         <p className="text-sm text-gray-500 mt-2">
-          Logged in as: {userEmail} {isAdmin && <span className="text-blue-600 font-medium">(Admin)</span>}
+          Logged in as: {userEmail}{" "}
+          {isAdmin ? (
+            <span className="text-blue-600 font-medium">(Admin - viewing all applications)</span>
+          ) : (
+            <span className="text-orange-600 font-medium">(Agent - viewing your applications only)</span>
+          )}
         </p>
       </div>
 
