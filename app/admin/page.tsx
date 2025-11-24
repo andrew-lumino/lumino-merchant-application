@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import MerchantApplicationsTable from "@/components/merchant-applications-table"
+import ApplicationCardsManager from "@/components/application-cards-manager"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type Application = Record<string, any>
 
@@ -43,7 +45,20 @@ export default function AdminPage() {
         <p className="text-lg text-gray-600 mt-2">Manage and review merchant applications</p>
       </div>
 
-      <MerchantApplicationsTable applications={applications} />
+      <Tabs defaultValue="dashboard" className="w-full">
+        <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="table">Detailed Table</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="dashboard" className="mt-6">
+          <ApplicationCardsManager applications={applications} />
+        </TabsContent>
+
+        <TabsContent value="table" className="mt-6">
+          <MerchantApplicationsTable applications={applications} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

@@ -415,6 +415,35 @@ export default function MerchantApplicationWizard() {
     return inviteId ? `lumino_draft_${inviteId}` : null
   }
 
+  const saveDraftToDatabase = async () => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const inviteId = urlParams.get("id") || applicationData?.id
+
+    if (!inviteId || !isAgentMode) return
+
+    try {
+      const response = await fetch("/api/save-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationId: inviteId,
+          formData,
+          principals,
+          uploads,
+          currentStep,
+          timestamp: new Date().toISOString(),
+        }),
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        console.log("[v0] Draft saved to database")
+      }
+    } catch (error) {
+      console.error("[v0] Failed to save draft to database:", error)
+    }
+  }
+
   useEffect(() => {
     const key = getLocalStorageKey()
     if (!key) return
@@ -462,10 +491,12 @@ export default function MerchantApplicationWizard() {
       }
       localStorage.setItem(key, JSON.stringify(dataToSave))
       console.log("[v0] Saved draft to localStorage")
+
+      saveDraftToDatabase()
     } catch (error) {
       console.error("[v0] Failed to save draft:", error)
     }
-  }, [formData, principals, uploads, currentStep, isAgentMode])
+  }, [formData, principals, uploads, currentStep])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1467,11 +1498,11 @@ export default function MerchantApplicationWizard() {
         id: applicationData?.id,
         principals,
         terminals: formData.terminals,
-        
+
         // 🔥 ADD THESE TWO LINES 🔥
         agent_email: userEmail || formData.agentEmail, // Use Clerk email or fallback
         agent_name: agentName || userEmail?.split("@")[0].toUpperCase() || "AGENT", // Use saved name or generate
-        
+
         uploads: Object.fromEntries(
           Object.entries(uploads)
             .map(([key, upload]) => [
