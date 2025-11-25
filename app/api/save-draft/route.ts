@@ -16,7 +16,11 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { applicationId, formData, principals, uploads, currentStep } = body
 
-    console.log("[v0] Saving draft for application:", applicationId)
+    console.log("[v0] Save-draft called for application:", applicationId)
+    console.log("[v0] Principals received:", JSON.stringify(principals))
+    console.log("[v0] Principals type:", typeof principals)
+    console.log("[v0] Principals isArray:", Array.isArray(principals))
+    console.log("[v0] Principals length:", principals?.length)
 
     if (!applicationId) {
       return NextResponse.json({ success: false, error: "Application ID required" }, { status: 400 })
@@ -25,7 +29,7 @@ export async function POST(request: Request) {
     // Check if application exists
     const { data: existingApp, error: fetchError } = await supabase
       .from("merchant_applications")
-      .select("id, agent_email")
+      .select("id, agent_email, status")
       .eq("id", applicationId)
       .single()
 
@@ -89,13 +93,22 @@ export async function POST(request: Request) {
       technicalContactName: "technical_contact_name",
       technicalContactEmail: "technical_contact_email",
       technicalContactPhone: "technical_contact_phone",
+      technicalContactSameAs: "technical_contact_same_as",
       authorizedContactName: "authorized_contact_name",
       authorizedContactEmail: "authorized_contact_email",
       authorizedContactPhone: "authorized_contact_phone",
+      authorizedContactSameAs: "authorized_contact_same_as",
       usesThirdParties: "uses_third_parties",
       thirdPartiesList: "third_parties_list",
       usesFulfillmentHouse: "uses_fulfillment_house",
       legalDiffers: "legal_differs",
+      managingMemberSameAs: "managing_member_same_as",
+      managingMemberReference: "managing_member_reference",
+      managingMemberFirstName: "managing_member_first_name",
+      managingMemberLastName: "managing_member_last_name",
+      managingMemberEmail: "managing_member_email",
+      managingMemberPhone: "managing_member_phone",
+      managingMemberPosition: "managing_member_position",
     }
 
     const numericFields: Record<string, string> = {
@@ -143,9 +156,16 @@ export async function POST(request: Request) {
       }
     }
 
-    // Handle principals array
-    if (principals && Array.isArray(principals) && principals.length > 0) {
-      updateData.principals = principals
+    // The wizard always has at least one principal entry initialized
+    if (principals !== undefined) {
+      if (Array.isArray(principals)) {
+        updateData.principals = principals
+        console.log("[v0] Saving principals array with", principals.length, "entries")
+      } else {
+        console.log("[v0] Principals is not an array, skipping")
+      }
+    } else {
+      console.log("[v0] Principals is undefined in request body")
     }
 
     console.log("[v0] Updating with fields:", Object.keys(updateData))
@@ -161,7 +181,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 
-    console.log("[v0] Draft saved successfully")
+    console.log("[v0] Draft saved successfully, principals saved:", data?.[0]?.principals?.length || 0)
     return NextResponse.json({ success: true, data })
   } catch (error: any) {
     console.error("[v0] Error in save-draft:", error?.message || error)
