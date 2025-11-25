@@ -4,10 +4,10 @@ import { requireAuth, validateUUID } from "@/lib/auth"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-const ALLOWED_STATUSES = ["draft", "drafted", "invited", "in_progress", "submitted", "approved", "rejected", "on_hold"]
+const ALLOWED_STATUSES = ["draft", "invited", "in_progress", "submitted", "approved", "rejected"]
 
 export async function POST(request: Request) {
-  const auth = await requireAuth(false)
+  const auth = await requireAuth()
   if (!auth.authorized) {
     return auth.response
   }
@@ -24,8 +24,7 @@ export async function POST(request: Request) {
     }
 
     if (!ALLOWED_STATUSES.includes(status)) {
-      console.error("[v0] Invalid status value:", status, "Allowed:", ALLOWED_STATUSES)
-      return NextResponse.json({ success: false, error: `Invalid status value: ${status}` }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Invalid status value" }, { status: 400 })
     }
 
     const { data, error } = await supabase
@@ -36,13 +35,13 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      console.error("[v0] Supabase error updating status:", error)
+      console.error("Supabase error updating status:", error)
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data })
   } catch (error) {
-    console.error("[v0] Error updating application status:", error)
+    console.error("Error updating application status:", error)
     return NextResponse.json({ success: false, error: "Failed to update status" }, { status: 500 })
   }
 }

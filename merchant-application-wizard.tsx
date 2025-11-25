@@ -415,36 +415,6 @@ export default function MerchantApplicationWizard() {
     return inviteId ? `lumino_draft_${inviteId}` : null
   }
 
-  const saveDraftToDatabase = async () => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const inviteId = urlParams.get("id") || applicationData?.id
-
-    if (!inviteId || !isAgentMode) return
-
-    try {
-      const response = await fetch("/api/save-draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicationId: inviteId,
-          formData,
-          principals,
-          uploads,
-          currentStep,
-          timestamp: new Date().toISOString(),
-        }),
-      })
-
-      const result = await response.json()
-      if (result.success) {
-        console.log("[v0] Draft saved to database")
-      }
-    } catch (error) {
-      console.error("[v0] Failed to save draft to database:", error)
-    }
-  }
-
-  // Initial load - no debouncing
   useEffect(() => {
     const key = getLocalStorageKey()
     if (!key) return
@@ -478,32 +448,24 @@ export default function MerchantApplicationWizard() {
     }
   }, []) // Only run once on mount
 
-  // Debounced auto-save
   useEffect(() => {
     const key = getLocalStorageKey()
-    if (!key || !isAgentMode) return
+    if (!key || !isAgentMode) return // Only save for agents
 
-    const debounceTimer = setTimeout(() => {
-      try {
-        const dataToSave = {
-          timestamp: new Date().toISOString(),
-          formData,
-          principals,
-          uploads,
-          currentStep,
-        }
-        // </CHANGE> Fixed typo: JSON.JSON.stringify -> JSON.stringify
-        localStorage.setItem(key, JSON.stringify(dataToSave))
-        console.log("[v0] Saved draft to localStorage")
-
-        saveDraftToDatabase()
-      } catch (error) {
-        console.error("[v0] Failed to save draft:", error)
+    try {
+      const dataToSave = {
+        timestamp: new Date().toISOString(),
+        formData,
+        principals,
+        uploads,
+        currentStep,
       }
-    }, 1000) // 1 second debounce - saves as you type but not on every keystroke
-
-    return () => clearTimeout(debounceTimer)
-  }, [formData, principals, uploads, currentStep])
+      localStorage.setItem(key, JSON.stringify(dataToSave))
+      console.log("[v0] Saved draft to localStorage")
+    } catch (error) {
+      console.error("[v0] Failed to save draft:", error)
+    }
+  }, [formData, principals, uploads, currentStep, isAgentMode])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1505,11 +1467,11 @@ export default function MerchantApplicationWizard() {
         id: applicationData?.id,
         principals,
         terminals: formData.terminals,
-
+        
         // 🔥 ADD THESE TWO LINES 🔥
         agent_email: userEmail || formData.agentEmail, // Use Clerk email or fallback
         agent_name: agentName || userEmail?.split("@")[0].toUpperCase() || "AGENT", // Use saved name or generate
-
+        
         uploads: Object.fromEntries(
           Object.entries(uploads)
             .map(([key, upload]) => [
