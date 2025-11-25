@@ -17,14 +17,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: "Invalid ID format" }, { status: 400 })
     }
 
-    const { data, error } = await supabase.from("merchant_applications").select("*").eq("id", id).single()
+    const [applicationResult, uploadsResult] = await Promise.all([
+      supabase.from("merchant_applications").select("*").eq("id", id).single(),
+      supabase.from("merchant_uploads").select("*").eq("application_id", id),
+    ])
 
-    if (error) {
-      if (error.code === "PGRST116") {
+    if (applicationResult.error) {
+      if (applicationResult.error.code === "PGRST116") {
         return NextResponse.json({ success: false, error: "Application not found" }, { status: 404 })
       }
-      console.error("Supabase error:", error)
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+      console.error("Supabase error:", applicationResult.error)
+      return NextResponse.json({ success: false, error: applicationResult.error.message }, { status: 500 })
+    }
+
+    const data = {
+      ...applicationResult.data,
+      uploads: uploadsResult.data || [],
     }
 
     return NextResponse.json({ success: true, data })

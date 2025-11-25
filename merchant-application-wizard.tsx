@@ -27,6 +27,9 @@ import {
   FileCheck,
   Terminal,
   Mail,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import jsPDF from "jspdf"
@@ -34,7 +37,6 @@ import { BusinessTypeAutocomplete } from "@/components/business-type-autocomplet
 import { TerminalSelector } from "@/components/terminal-selector"
 import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
-import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { MerchantQuickActions } from "@/components/quick-actions"
 
 const snakeToCamel = (str: string) =>
@@ -114,6 +116,18 @@ interface FileUpload {
   uploadedUrl?: string
   fileName?: string
   errorMessage?: string
+}
+
+// Renamed for clarity and to match update structure
+interface UploadedFile {
+  file?: File | null
+  url: string
+  name?: string
+  uploadType: "file" | "url"
+  preview?: string | null
+  uploadStatus?: "idle" | "uploading" | "success" | "error" | "warning"
+  errorMessage?: string
+  uploadedUrl?: string // For files successfully uploaded to storage
 }
 
 interface SelectedTerminal {
@@ -395,7 +409,10 @@ export default function MerchantApplicationWizard() {
     },
   ])
 
+  // Initialize with FileUpload type, but will be replaced by UploadedFile if needed
   const [uploads, setUploads] = useState<Record<string, FileUpload>>({})
+  // New state for loaded uploads, structured as expected by the API
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, UploadedFile>>({})
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitted, setIsSubmitted] = useState(false)
@@ -403,10 +420,10 @@ export default function MerchantApplicationWizard() {
   const { toast } = useToast()
 
   const { user, isLoaded } = useUser()
-  const [isAgent, setIsAgent] = useState(false)
+  const [isAgent, setIsAgent] = useState(false) // This seems unused, consider removing
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedTerminals, setSelectedTerminals] = useState<any>([])
-  const [manuallySetFields, setManuallySetFields] = useState<Set<string>>(new Set())
+  const [selectedTerminals, setSelectedTerminals] = useState<any>([]) // This seems unused, consider removing
+  const [manuallySetFields, setManuallySetFields] = useState<Set<string>>(new Set()) // This seems unused, consider removing
 
   const userEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || null
 
@@ -441,7 +458,8 @@ export default function MerchantApplicationWizard() {
           applicationId: inviteId,
           formData,
           principals,
-          uploads,
+          // Pass the combined uploads state for saving
+          uploads: { ...uploads, ...uploadedFiles }, // Combine both for comprehensive save
           currentStep,
           timestamp: new Date().toISOString(),
         }),
@@ -482,7 +500,8 @@ export default function MerchantApplicationWizard() {
       // Restore data
       if (parsed.formData) setFormData((prev) => ({ ...prev, ...parsed.formData }))
       if (parsed.principals) setPrincipals(parsed.principals)
-      if (parsed.uploads) setUploads(parsed.uploads)
+      if (parsed.uploads) setUploads(parsed.uploads) // Old upload format
+      if (parsed.uploadedFiles) setUploadedFiles(parsed.uploadedFiles) // New upload format
       if (parsed.currentStep !== undefined) setCurrentStep(parsed.currentStep)
 
       console.log("[v0] Restored draft from localStorage")
@@ -508,7 +527,8 @@ export default function MerchantApplicationWizard() {
             timestamp: new Date().toISOString(),
             formData,
             principals,
-            uploads,
+            uploads, // Keep old format for now
+            uploadedFiles, // Add new format
             currentStep,
           }
           localStorage.setItem(key, JSON.stringify(dataToSave))
@@ -523,7 +543,7 @@ export default function MerchantApplicationWizard() {
     }, 1000) // 1 second debounce - saves as you type but not on every keystroke
 
     return () => clearTimeout(debounceTimer)
-  }, [formData, principals, uploads, currentStep, userEmail])
+  }, [formData, principals, uploads, uploadedFiles, currentStep, userEmail]) // Add uploadedFiles to dependencies
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -664,6 +684,25 @@ export default function MerchantApplicationWizard() {
               }
               setMerchantEmail(appData.dba_email || "")
 
+              if (appData.uploads && Array.isArray(appData.uploads) && appData.uploads.length > 0) {
+                console.log("[v0] Loading existing uploads from database:", appData.uploads)
+                const loadedUploads: Record<string, UploadedFile> = {}
+                appData.uploads.forEach((upload: any) => {
+                  if (upload.document_type && upload.file_url) {
+                    loadedUploads[upload.document_type] = {
+                      url: upload.file_url,
+                      name: upload.file_name || upload.document_type,
+                      uploadType: upload.upload_type || "file",
+                      uploadedUrl: upload.file_url, // Add uploadedUrl for file type
+                    }
+                  }
+                })
+                if (Object.keys(loadedUploads).length > 0) {
+                  setUploadedFiles(loadedUploads)
+                  console.log("[v0] Restored uploads:", Object.keys(loadedUploads))
+                }
+              }
+
               if (appData.status === "invited") {
                 fetch("/api/update-application-status", {
                   method: "POST",
@@ -745,7 +784,9 @@ export default function MerchantApplicationWizard() {
   }, [isLoaded, user])
 
   const handleAgentAction = async (action: "send" | "copy") => {
-    console.log("Current uploads state:", uploads)
+    console.log("Current uploads state:", uploads) // Current uploads state
+    console.log("Current uploadedFiles state:", uploadedFiles) // Current uploadedFiles state
+
     if (action === "send" && !merchantEmail) {
       toast({
         title: "Email Required",
@@ -786,7 +827,16 @@ export default function MerchantApplicationWizard() {
       const response = await fetch("/api/save-prefill-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicationId: appId, formData, principals, merchantEmail, action, uploads }),
+        body: JSON.stringify({
+          applicationId: appId,
+          formData,
+          principals,
+          merchantEmail,
+          action,
+          // Pass both upload states to the API, let the backend decide which to use or merge if needed
+          uploads, // Existing upload objects
+          uploadedFiles, // New format with file_url, etc.
+        }),
       })
       const result = await response.json()
       if (!result.success) throw new Error(result.error || "Failed to process request.")
@@ -797,6 +847,7 @@ export default function MerchantApplicationWizard() {
         description: action === "send" ? "Invitation sent successfully." : "Link copied to clipboard.",
       })
       if (action === "copy") await navigator.clipboard.writeText(result.link)
+      // Redirect after a short delay to allow the toast to be seen
       setTimeout(() => {
         window.location.href = "/invite"
       }, 1500)
@@ -897,7 +948,7 @@ export default function MerchantApplicationWizard() {
 
   const addPrincipal = () => {
     const newPrincipal: Principal = {
-      id: (principals.length + 1).toString(),
+      id: Date.now().toString(), // Use timestamp for unique ID
       firstName: "",
       lastName: "",
       middleName: "",
@@ -922,7 +973,14 @@ export default function MerchantApplicationWizard() {
   }
 
   const removePrincipal = (id: string) => {
-    if (principals.length > 1) setPrincipals(principals.filter((p) => p.id !== id))
+    if (principals.length > 1) {
+      setPrincipals(principals.filter((p) => p.id !== id))
+      // Also remove associated uploads if they exist
+      setUploads((prev) => {
+        const { [`principal${id}GovId`]: _, ...rest } = prev
+        return rest
+      })
+    }
   }
 
   const updatePrincipal = (id: string, field: keyof Principal, value: string) => {
@@ -1002,19 +1060,23 @@ export default function MerchantApplicationWizard() {
       } = supabase.storage.from("merchant-uploads").getPublicUrl(fileName)
 
       // Generate preview for images
-      const preview = null
+      let preview = null
       if (file.type.startsWith("image/")) {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          setUploads((prev) => ({
-            ...prev,
-            [key]: {
-              ...prev[key],
-              preview: reader.result as string,
-            },
-          }))
+        try {
+          const reader = new FileReader()
+          reader.onloadend = () => {
+            setUploads((prev) => ({
+              ...prev,
+              [key]: {
+                ...prev[key],
+                preview: reader.result as string,
+              },
+            }))
+          }
+          preview = await new Promise((resolve) => reader.readAsDataURL(file))
+        } catch (readError) {
+          console.error("Error reading file for preview:", readError)
         }
-        reader.readAsDataURL(file)
       }
 
       // Update with success
@@ -1028,6 +1090,20 @@ export default function MerchantApplicationWizard() {
           uploadStatus: "success",
           uploadedUrl: publicUrl,
           fileName: file.name,
+          errorMessage: undefined,
+        },
+      }))
+
+      // Also update the uploadedFiles state with the new format
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [key]: {
+          url: publicUrl,
+          name: file.name,
+          uploadType: "file",
+          preview: preview, // Include preview if available
+          uploadStatus: "success",
+          uploadedUrl: publicUrl,
           errorMessage: undefined,
         },
       }))
@@ -1056,6 +1132,18 @@ export default function MerchantApplicationWizard() {
           uploadStatus: status,
           errorMessage,
           fileName: file.name,
+        },
+      }))
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          file: null, // Clear file on error
+          preview: null,
+          uploadType: "file",
+          uploadStatus: status,
+          errorMessage,
+          uploadedUrl: undefined, // Clear uploaded URL on error
         },
       }))
     }
@@ -1259,6 +1347,16 @@ export default function MerchantApplicationWizard() {
           errorMessage: undefined,
         },
       }))
+      // Also update uploadedFiles
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [key]: {
+          url: "",
+          uploadType: "url",
+          uploadStatus: "idle",
+          errorMessage: undefined,
+        },
+      }))
       return
     }
 
@@ -1269,6 +1367,15 @@ export default function MerchantApplicationWizard() {
         ...prev[key],
         url,
         preview: null,
+        uploadType: "url",
+        uploadStatus: "uploading",
+        errorMessage: "Validating URL...",
+      },
+    }))
+    setUploadedFiles((prev) => ({
+      ...prev,
+      [key]: {
+        url,
         uploadType: "url",
         uploadStatus: "uploading",
         errorMessage: "Validating URL...",
@@ -1291,6 +1398,15 @@ export default function MerchantApplicationWizard() {
             errorMessage: "Please enter a valid URL",
           },
         }))
+        setUploadedFiles((prev) => ({
+          ...prev,
+          [key]: {
+            url,
+            uploadType: "url",
+            uploadStatus: "error",
+            errorMessage: "Please enter a valid URL",
+          },
+        }))
         return
       }
 
@@ -1301,6 +1417,15 @@ export default function MerchantApplicationWizard() {
             ...prev[key],
             url,
             preview: null,
+            uploadType: "url",
+            uploadStatus: "error",
+            errorMessage: "This URL does not appear to be an accepted file type (images, PDFs, or documents).",
+          },
+        }))
+        setUploadedFiles((prev) => ({
+          ...prev,
+          [key]: {
+            url,
             uploadType: "url",
             uploadStatus: "error",
             errorMessage: "This URL does not appear to be an accepted file type (images, PDFs, or documents).",
@@ -1322,6 +1447,16 @@ export default function MerchantApplicationWizard() {
           errorMessage: validation.warning,
         },
       }))
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [key]: {
+          url,
+          uploadType: "url",
+          uploadStatus: status,
+          errorMessage: validation.warning,
+          // No 'uploadedUrl' for URLs, as they are external
+        },
+      }))
     } catch (error) {
       console.error("URL validation failed:", error)
       setUploads((prev) => ({
@@ -1335,10 +1470,20 @@ export default function MerchantApplicationWizard() {
           errorMessage: "Failed to validate URL. Please try again.",
         },
       }))
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [key]: {
+          url,
+          uploadType: "url",
+          uploadStatus: "error",
+          errorMessage: "Failed to validate URL. Please try again.",
+        },
+      }))
     }
   }
 
   const toggleUploadType = (key: string, type: "file" | "url") => {
+    // Resetting both uploads and uploadedFiles states
     setUploads((prev) => ({
       ...prev,
       [key]: {
@@ -1348,6 +1493,21 @@ export default function MerchantApplicationWizard() {
         preview: null,
         uploadStatus: "idle",
         errorMessage: undefined,
+        fileName: undefined,
+        uploadedUrl: undefined,
+      },
+    }))
+    setUploadedFiles((prev) => ({
+      ...prev,
+      [key]: {
+        url: "",
+        uploadType: type,
+        uploadStatus: "idle",
+        errorMessage: undefined,
+        uploadedUrl: undefined,
+        name: undefined,
+        file: undefined,
+        preview: undefined,
       },
     }))
   }
@@ -1494,13 +1654,17 @@ export default function MerchantApplicationWizard() {
     const reviewStepIndex = steps.findIndex((s) => s.id === "review")
     let mergedErrors: Record<string, string> = {}
 
+    // Validate all relevant steps before final submission
     for (let i = 1; i <= reviewStepIndex; i++) {
       const errs = validateStep(i, true)
       if (Object.keys(errs).length) {
         mergedErrors = { ...mergedErrors, ...errs }
         updateStepStatus(i, "error")
       } else {
-        if (steps[i].status === "error") updateStepStatus(i, "visited")
+        // Only update status if it was an error before, to keep 'completed' status
+        if (steps[i].status === "error") {
+          updateStepStatus(i, "completed")
+        }
       }
     }
 
@@ -1520,7 +1684,7 @@ export default function MerchantApplicationWizard() {
     try {
       const formDataToSubmit = new FormData()
 
-      // Add JSON data
+      // Prepare the data payload, including both old and new upload formats
       const jsonData = {
         ...formData,
         id: applicationData?.id,
@@ -1531,17 +1695,32 @@ export default function MerchantApplicationWizard() {
         agent_email: userEmail || formData.agentEmail, // Use Clerk email or fallback
         agent_name: agentName || userEmail?.split("@")[0].toUpperCase() || "AGENT", // Use saved name or generate
 
+        // Combine uploads and uploadedFiles into a single structure for submission
+        // Prioritize uploadedFiles for newer, structured data
         uploads: Object.fromEntries(
-          Object.entries(uploads)
-            .map(([key, upload]) => [
-              key,
-              upload.uploadType === "url"
-                ? { uploadType: "url", url: upload.url }
-                : upload.uploadedUrl
-                  ? { uploadType: "file", url: upload.uploadedUrl }
-                  : undefined,
-            ])
-            .filter(([, value]) => value !== undefined),
+          Object.entries({ ...uploads, ...uploadedFiles }) // Merge both states
+            .map(([key, upload]) => {
+              if (upload.uploadStatus === "success") {
+                // For file uploads that succeeded and have an uploadedUrl
+                if (upload.uploadedUrl) {
+                  return [
+                    key,
+                    {
+                      uploadType: upload.uploadType || "file", // Default to 'file' if not specified
+                      url: upload.uploadedUrl,
+                      fileName: upload.name || upload.fileName, // Use name from uploadedFiles or original fileName
+                    },
+                  ]
+                }
+                // For URL uploads that succeeded
+                if (upload.uploadType === "url" && upload.url) {
+                  return [key, { uploadType: "url", url: upload.url }]
+                }
+              }
+              // Skip if not successful or missing necessary info
+              return null
+            })
+            .filter((entry): entry is [string, any] => entry !== null),
         ),
       }
 
@@ -1901,34 +2080,51 @@ Thank you!`
     label,
     description,
   }: { uploadKey: string; label: string; description: string }) => {
-    const upload = uploads[uploadKey] || {
-      file: null,
-      url: "",
-      uploadType: "file",
-      preview: null,
-      uploadStatus: "idle",
-      errorMessage: undefined,
-    }
+    // Try to get initial state from uploadedFiles, fallback to uploads
+    const initialUploadState = uploadedFiles[uploadKey] ||
+      uploads[uploadKey] || {
+        file: null,
+        url: "",
+        uploadType: "file", // Default to file upload
+        preview: null,
+        uploadStatus: "idle",
+        errorMessage: undefined,
+        fileName: undefined,
+        uploadedUrl: undefined,
+      }
+
+    const [uploadState, setUploadState] = useState<UploadedFile>(initialUploadState)
+
+    // Effect to update local state if uploadedFiles changes (e.g., on initial load from API)
+    useEffect(() => {
+      setUploadState(initialUploadState)
+    }, [initialUploadState])
 
     // Create a consistent reset function
     const resetUpload = () => {
-      setUploads((prev) => ({
-        ...prev,
-        [uploadKey]: {
-          file: null,
-          url: "",
-          uploadType: upload.uploadType, // Keep the current upload type
-          preview: null,
-          uploadStatus: "idle",
-          errorMessage: undefined,
-          fileName: undefined,
-          uploadedUrl: undefined,
-        },
-      }))
+      setUploadState({
+        file: null,
+        url: "",
+        uploadType: "file", // Default to file upload on reset
+        preview: null,
+        uploadStatus: "idle",
+        errorMessage: undefined,
+        fileName: undefined,
+        uploadedUrl: undefined,
+      })
+      // Also clear from parent states if it exists there
+      setUploads((prev) => {
+        const { [uploadKey]: _, ...rest } = prev
+        return rest
+      })
+      setUploadedFiles((prev) => {
+        const { [uploadKey]: _, ...rest } = prev
+        return rest
+      })
     }
 
     const StatusIcon = () => {
-      switch (upload.uploadStatus) {
+      switch (uploadState.uploadStatus) {
         case "uploading":
           return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
         case "success":
@@ -1943,7 +2139,7 @@ Thank you!`
     }
 
     const getStatusColor = () => {
-      switch (upload.uploadStatus) {
+      switch (uploadState.uploadStatus) {
         case "success":
           return "text-green-600"
         case "warning":
@@ -1957,6 +2153,69 @@ Thank you!`
       }
     }
 
+    // Handlers to update parent state when local state changes
+    const handleLocalFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        setUploadState((prev) => ({
+          ...prev,
+          file,
+          preview: null,
+          uploadStatus: "error",
+          errorMessage: `File size exceeds ${MAX_FILE_SIZE_MB}MB. Please upload a smaller file.`,
+          fileName: file.name,
+        }))
+        return
+      }
+
+      setUploadState((prev) => ({
+        ...prev,
+        file,
+        uploadType: "file",
+        uploadStatus: "uploading",
+        fileName: file.name,
+        errorMessage: undefined,
+      }))
+
+      // Trigger the parent's upload handler
+      await handleFileUpload(uploadKey, e)
+      // After parent handler updates uploads/uploadedFiles, re-sync local state
+      setUploadState(uploadedFiles[uploadKey] || uploads[uploadKey] || initialUploadState)
+    }
+
+    const handleLocalUrlUpload = async (url: string) => {
+      setUploadState((prev) => ({
+        ...prev,
+        url,
+        preview: null,
+        uploadType: "url",
+        uploadStatus: "uploading",
+        errorMessage: "Validating URL...",
+      }))
+
+      await handleUrlUpload(uploadKey, url)
+      // After parent handler updates uploads/uploadedFiles, re-sync local state
+      setUploadState(uploadedFiles[uploadKey] || uploads[uploadKey] || initialUploadState)
+    }
+
+    const handleLocalToggleUploadType = (type: "file" | "url") => {
+      setUploadState((prev) => ({
+        ...prev,
+        file: null,
+        url: "",
+        uploadType: type,
+        preview: null,
+        uploadStatus: "idle",
+        errorMessage: undefined,
+        fileName: undefined,
+        uploadedUrl: undefined,
+      }))
+      // Trigger parent's toggle
+      toggleUploadType(uploadKey, type)
+    }
+
     return (
       <div className="space-y-4">
         <div className="mb-6">
@@ -1968,16 +2227,16 @@ Thank you!`
             <div className="inline-flex bg-gray-100 rounded-lg p-1 border border-gray-200">
               <button
                 type="button"
-                className={`flex items-center px-3 py-2 text-xs font-medium rounded-md transition-all ${upload.uploadType === "file" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-                onClick={() => toggleUploadType(uploadKey, "file")}
+                className={`flex items-center px-3 py-2 text-xs font-medium rounded-md transition-all ${uploadState.uploadType === "file" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                onClick={() => handleLocalToggleUploadType("file")}
               >
                 <Upload className="w-3 h-3 mr-2" />
                 File Upload
               </button>
               <button
                 type="button"
-                className={`flex items-center px-3 py-2 text-xs font-medium rounded-md transition-all ${upload.uploadType === "url" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-                onClick={() => toggleUploadType(uploadKey, "url")}
+                className={`flex items-center px-3 py-2 text-xs font-medium rounded-md transition-all ${uploadState.uploadType === "url" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                onClick={() => handleLocalToggleUploadType("url")}
               >
                 <LinkIcon className="w-3 h-3 mr-2" />
                 Link URL
@@ -1985,18 +2244,18 @@ Thank you!`
             </div>
           </div>
           <div className="px-4 pb-4">
-            {upload.uploadType === "file" ? (
+            {uploadState.uploadType === "file" ? (
               <div className="space-y-3">
                 <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                  {upload.preview ? (
+                  {uploadState.preview ? (
                     <div className="relative">
-                      <img src={upload.preview || "/placeholder.svg"} alt="Preview" className="max-h-32 mx-auto" />
+                      <img src={uploadState.preview || "/placeholder.svg"} alt="Preview" className="max-h-32 mx-auto" />
                       <Button
                         type="button"
                         variant="destructive"
                         size="sm"
                         className="absolute top-2 right-2"
-                        onClick={resetUpload} // Use the consistent reset function
+                        onClick={resetUpload}
                       >
                         <X className="w-4 h-4" />
                       </Button>
@@ -2013,46 +2272,44 @@ Thank you!`
                   <Input
                     type="file"
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    onChange={(e) => handleFileUpload(uploadKey, e)}
+                    onChange={handleLocalFileUpload}
                     accept={SUPPORTED_FILE_TYPES.map((type) => `.${type.toLowerCase()}`).join(",")}
-                    disabled={upload.uploadStatus === "uploading"}
+                    disabled={uploadState.uploadStatus === "uploading"}
                   />
                 </div>
 
-                {upload.fileName && (
+                {(uploadState.fileName || uploadState.uploadedUrl) && (
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 overflow-hidden">
                       <StatusIcon />
-                      <span className={`text-sm font-medium ${getStatusColor()}`}>{upload.fileName}</span>
-                    </div>
-                    {/* Show X button for success, error, and warning states */}
-                    {(upload.uploadStatus === "success" ||
-                      upload.uploadStatus === "error" ||
-                      upload.uploadStatus === "warning") && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={resetUpload} // Use the consistent reset function
-                        title="Remove file"
+                      <span
+                        className={`text-sm font-medium truncate ${getStatusColor()}`}
+                        title={uploadState.fileName || uploadState.name}
                       >
+                        {uploadState.fileName || uploadState.name || "Unknown file"}
+                      </span>
+                    </div>
+                    {(uploadState.uploadStatus === "success" ||
+                      uploadState.uploadStatus === "error" ||
+                      uploadState.uploadStatus === "warning") && (
+                      <Button type="button" variant="ghost" size="sm" onClick={resetUpload} title="Remove file">
                         <X className="w-4 h-4" />
                       </Button>
                     )}
                   </div>
                 )}
 
-                {upload.errorMessage && (
+                {uploadState.errorMessage && (
                   <div
                     className={`text-xs p-2 rounded ${
-                      upload.uploadStatus === "error"
+                      uploadState.uploadStatus === "error"
                         ? "bg-red-50 text-red-600"
-                        : upload.uploadStatus === "warning"
+                        : uploadState.uploadStatus === "warning"
                           ? "bg-yellow-50 text-yellow-600"
                           : "bg-gray-50 text-gray-600"
                     }`}
                   >
-                    {upload.errorMessage}
+                    {uploadState.errorMessage}
                   </div>
                 )}
               </div>
@@ -2061,8 +2318,8 @@ Thank you!`
                 <div className="relative">
                   <Input
                     placeholder="Add image URL (e.g., Google Drive link)"
-                    value={upload.url}
-                    onChange={(e) => handleUrlUpload(uploadKey, e.target.value)}
+                    value={uploadState.url}
+                    onChange={(e) => handleLocalUrlUpload(e.target.value)}
                     className="pr-20"
                   />
                   <Button
@@ -2072,7 +2329,7 @@ Thank you!`
                     onClick={async () => {
                       try {
                         const text = await navigator.clipboard.readText()
-                        if (text.trim()) handleUrlUpload(uploadKey, text.trim())
+                        if (text.trim()) handleLocalUrlUpload(text.trim())
                       } catch (error) {
                         console.error("Failed to read clipboard:", error)
                       }
@@ -2083,44 +2340,37 @@ Thank you!`
                   </Button>
                 </div>
 
-                {upload.url && (
+                {uploadState.url && (
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center space-x-2">
                       <StatusIcon />
                       <span className={`text-xs ${getStatusColor()}`}>
-                        {upload.uploadStatus === "success"
+                        {uploadState.uploadStatus === "success"
                           ? "✓ URL added successfully"
-                          : upload.uploadStatus === "warning"
+                          : uploadState.uploadStatus === "warning"
                             ? "⚠ URL added with warning"
-                            : upload.uploadStatus === "error"
+                            : uploadState.uploadStatus === "error"
                               ? "✗ Invalid URL"
                               : "URL added"}
                       </span>
                     </div>
-                    {/* Add X button for URL clearing */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={resetUpload} // Use the consistent reset function
-                      title="Clear URL"
-                    >
+                    <Button type="button" variant="ghost" size="sm" onClick={resetUpload} title="Clear URL">
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
                 )}
 
-                {upload.errorMessage && (
+                {uploadState.errorMessage && (
                   <div
                     className={`text-xs p-2 rounded ${
-                      upload.uploadStatus === "error"
+                      uploadState.uploadStatus === "error"
                         ? "bg-red-50 text-red-600"
-                        : upload.uploadStatus === "warning"
+                        : uploadState.uploadStatus === "warning"
                           ? "bg-yellow-50 text-yellow-600"
                           : "bg-gray-50 text-gray-600"
                     }`}
                   >
-                    {upload.errorMessage}
+                    {uploadState.errorMessage}
                   </div>
                 )}
               </div>
@@ -4028,7 +4278,9 @@ Thank you!`
       <MerchantQuickActions
         formData={formData}
         principals={principals}
+        // Pass the combined uploads state to MerchantQuickActions if it uses it
         uploads={uploads}
+        uploadedFiles={uploadedFiles} // Pass the new state as well
         isAgentMode={isAgentMode}
         show={mainContentVisible && !isSubmitted && currentStep > 0}
       />

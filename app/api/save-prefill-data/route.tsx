@@ -305,31 +305,40 @@ export async function POST(request: Request) {
 
       console.log("Processed uploaded files for prefill:", uploadedFiles)
 
-      // Delete any existing upload records for this application
-      console.log("🗑️ Cleaning up existing upload records for prefill...")
-      await supabase.from("merchant_uploads").delete().eq("application_id", applicationId)
+      if (Object.keys(uploadedFiles).length > 0) {
+        // Get the document types being updated
+        const documentTypesToReplace = Object.keys(uploadedFiles)
 
-      // Insert new upload records
-      const uploadPromises: Promise<any>[] = []
+        // Only delete the specific document types that are being replaced
+        for (const docType of documentTypesToReplace) {
+          await supabase
+            .from("merchant_uploads")
+            .delete()
+            .eq("application_id", applicationId)
+            .eq("document_type", docType)
+        }
+        console.log(`🗑️ Cleaned up ${documentTypesToReplace.length} existing upload records that are being replaced`)
 
-      Object.entries(uploadedFiles).forEach(([documentType, fileUrl]) => {
-        const uploadType = uploads[documentType]?.uploadType || "file"
-        uploadPromises.push(
-          supabase.from("merchant_uploads").insert({
-            application_id: applicationId,
-            document_type: documentType,
-            file_url: fileUrl,
-            upload_type: uploadType,
-          }),
-        )
-        console.log(`🔎 Queuing upload record for prefill: ${documentType} -> ${fileUrl}`)
-      })
+        // Insert new upload records
+        const uploadPromises: Promise<any>[] = []
 
-      if (uploadPromises.length > 0) {
+        Object.entries(uploadedFiles).forEach(([documentType, fileUrl]) => {
+          const uploadType = uploads[documentType]?.uploadType || "file"
+          uploadPromises.push(
+            supabase.from("merchant_uploads").insert({
+              application_id: applicationId,
+              document_type: documentType,
+              file_url: fileUrl,
+              upload_type: uploadType,
+            }),
+          )
+          console.log(`🔎 Queuing upload record for prefill: ${documentType} -> ${fileUrl}`)
+        })
+
         const uploadResults = await Promise.all(uploadPromises)
         console.log("✅ Upload records created for prefill:", uploadResults.length)
       } else {
-        console.log("ℹ️ No uploads to process in prefill")
+        console.log("ℹ️ No new uploads to process in prefill - keeping existing uploads intact")
       }
     } else {
       console.log("ℹ️ No uploads found in prefill data")
