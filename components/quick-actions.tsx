@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Mail, Download, Printer, FileText } from "lucide-react"
+import { Mail, Download, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -22,34 +22,34 @@ interface DownloadOptions {
   compressed: boolean
 }
 
-export const MerchantQuickActions = ({ 
-  formData, 
-  principals = [], 
-  uploads = {}, 
-  isAgentMode = false, 
-  show = false 
+export const MerchantQuickActions = ({
+  formData,
+  principals = [],
+  uploads = {},
+  isAgentMode = false,
+  show = false,
 }: MerchantQuickActionsProps) => {
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false)
   const [printDialogOpen, setPrintDialogOpen] = useState(false)
   const [downloadOptions, setDownloadOptions] = useState<DownloadOptions>({
     applicationInfo: true,
     fileUploads: false,
-    compressed: false
+    compressed: false,
   })
   const [printOptions, setPrintOptions] = useState<DownloadOptions>({
     applicationInfo: true,
     fileUploads: false,
-    compressed: false
+    compressed: false,
   })
 
   const handleEmailSupport = () => {
     const subject = encodeURIComponent("Merchant Application Support Request")
     const body = encodeURIComponent(
       `Hello Lumino Support Team,\n\nI need assistance with my merchant application.\n\n` +
-      (formData?.dbaName ? `Business Name: ${formData.dbaName}\n` : '') +
-      (formData?.dbaEmail ? `Business Email: ${formData.dbaEmail}\n` : '') +
-      (isAgentMode ? `Note: This is an agent-submitted inquiry.\n` : '') +
-      `\nPlease describe your issue below:\n\n\nBest regards`
+        (formData?.dbaName ? `Business Name: ${formData.dbaName}\n` : "") +
+        (formData?.dbaEmail ? `Business Email: ${formData.dbaEmail}\n` : "") +
+        (isAgentMode ? `Note: This is an agent-submitted inquiry.\n` : "") +
+        `\nPlease describe your issue below:\n\n\nBest regards`,
     )
     window.open(`mailto:support@golumino.com?subject=${subject}&body=${body}`)
   }
@@ -121,12 +121,12 @@ export const MerchantQuickActions = ({
     addSection("Merchant Information", {
       "DBA Name": formData.dbaName,
       "Legal Name": formData.legalName,
-      "Email": formData.dbaEmail,
-      "Phone": formData.dbaPhone,
+      Email: formData.dbaEmail,
+      Phone: formData.dbaPhone,
       "Federal Tax ID": formData.federalTaxId,
       "Ownership Type": formData.ownershipType,
       "Business Type": formData.businessType,
-      "Website": formData.websiteUrl,
+      Website: formData.websiteUrl,
     })
 
     // Address Information
@@ -172,7 +172,11 @@ export const MerchantQuickActions = ({
       "Refund Policy": formData.refundPolicy,
       "Previous Processor": formData.previousProcessor,
       "Seasonal Business": formData.seasonalBusiness ? "Yes" : "No",
-      "Seasonal Months": formData.seasonalMonths?.join(", "),
+      "Seasonal Months": Array.isArray(formData.seasonalMonths)
+        ? formData.seasonalMonths.join(", ")
+        : typeof formData.seasonalMonths === "string"
+          ? formData.seasonalMonths
+          : "",
     })
 
     // Terminal Information
@@ -291,12 +295,12 @@ export const MerchantQuickActions = ({
     // Generate Application Info PDF
     if (options.applicationInfo) {
       const appDoc = generateApplicationInfoPDF()
-      const appBlob = new Blob([appDoc.output('blob')], { type: 'application/pdf' })
+      const appBlob = new Blob([appDoc.output("blob")], { type: "application/pdf" })
       const businessName = formData?.dbaName ? formData.dbaName.replace(/[^a-zA-Z0-9]/g, "-") : "merchant"
       const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-")
       files.push({
         name: `${businessName}-application-${timestamp}.pdf`,
-        content: appBlob
+        content: appBlob,
       })
     }
 
@@ -306,15 +310,15 @@ export const MerchantQuickActions = ({
         for (const [key, upload] of Object.entries(uploads)) {
           if (upload.uploadedUrl || upload.url) {
             const fileUrl = upload.uploadedUrl || upload.url
-            
-            if (fileUrl.startsWith('data:')) {
+
+            if (fileUrl.startsWith("data:")) {
               // Convert data URL to blob
               const response = await fetch(fileUrl)
               const blob = await response.blob()
-              const extension = blob.type.split('/')[1] || 'jpg'
+              const extension = blob.type.split("/")[1] || "jpg"
               files.push({
                 name: `${key}.${extension}`,
-                content: blob
+                content: blob,
               })
             } else {
               // Remote URL
@@ -322,10 +326,10 @@ export const MerchantQuickActions = ({
                 const response = await fetch(fileUrl)
                 if (response.ok) {
                   const blob = await response.blob()
-                  const extension = blob.type.split('/')[1] || 'jpg'
+                  const extension = blob.type.split("/")[1] || "jpg"
                   files.push({
                     name: `${key}.${extension}`,
-                    content: blob
+                    content: blob,
                   })
                 }
               } catch (error) {
@@ -335,7 +339,7 @@ export const MerchantQuickActions = ({
           }
         }
       } catch (error) {
-        console.error('Error downloading files:', error)
+        console.error("Error downloading files:", error)
       }
     }
 
@@ -345,7 +349,7 @@ export const MerchantQuickActions = ({
       // Download files individually with staggered timing
       files.forEach((file, index) => {
         setTimeout(() => {
-          const link = document.createElement('a')
+          const link = document.createElement("a")
           link.href = URL.createObjectURL(file.content)
           link.download = file.name
           link.click()
@@ -353,8 +357,8 @@ export const MerchantQuickActions = ({
       })
     } else {
       // Download individual files
-      files.forEach(file => {
-        const link = document.createElement('a')
+      files.forEach((file) => {
+        const link = document.createElement("a")
         link.href = URL.createObjectURL(file.content)
         link.download = file.name
         link.click()
@@ -365,32 +369,40 @@ export const MerchantQuickActions = ({
   const printDocuments = (options: DownloadOptions) => {
     if (!options.applicationInfo) return
 
-    let printContent = `
+    const printContent = `
       <div style="page-break-after: always;">
         <h1 style="text-align: center; margin-bottom: 20px;">MERCHANT APPLICATION SUMMARY</h1>
-        ${formData?.dbaName ? `<p><strong>Business Name:</strong> ${formData.dbaName}</p>` : ''}
-        ${formData?.dbaEmail ? `<p><strong>Email:</strong> ${formData.dbaEmail}</p>` : ''}
-        ${formData?.dbaPhone ? `<p><strong>Phone:</strong> ${formData.dbaPhone}</p>` : ''}
-        ${formData?.ownershipType ? `<p><strong>Ownership Type:</strong> ${formData.ownershipType}</p>` : ''}
-        ${formData?.businessType ? `<p><strong>Business Type:</strong> ${formData.businessType}</p>` : ''}
+        ${formData?.dbaName ? `<p><strong>Business Name:</strong> ${formData.dbaName}</p>` : ""}
+        ${formData?.dbaEmail ? `<p><strong>Email:</strong> ${formData.dbaEmail}</p>` : ""}
+        ${formData?.dbaPhone ? `<p><strong>Phone:</strong> ${formData.dbaPhone}</p>` : ""}
+        ${formData?.ownershipType ? `<p><strong>Ownership Type:</strong> ${formData.ownershipType}</p>` : ""}
+        ${formData?.businessType ? `<p><strong>Business Type:</strong> ${formData.businessType}</p>` : ""}
         
         <h2>Business Profile</h2>
-        ${formData?.monthlyVolume ? `<p><strong>Monthly Volume:</strong> ${formData.monthlyVolume}</p>` : ''}
-        ${formData?.averageTicket ? `<p><strong>Average Ticket:</strong> ${formData.averageTicket}</p>` : ''}
-        ${formData?.highestTicket ? `<p><strong>Highest Ticket:</strong> ${formData.highestTicket}</p>` : ''}
+        ${formData?.monthlyVolume ? `<p><strong>Monthly Volume:</strong> ${formData.monthlyVolume}</p>` : ""}
+        ${formData?.averageTicket ? `<p><strong>Average Ticket:</strong> ${formData.averageTicket}</p>` : ""}
+        ${formData?.highestTicket ? `<p><strong>Highest Ticket:</strong> ${formData.highestTicket}</p>` : ""}
         
-        ${principals?.length > 0 ? `
+        ${
+          principals?.length > 0
+            ? `
           <h2>Business Principals</h2>
-          ${principals.map((p, i) => `
-            <p><strong>Principal ${i + 1}:</strong> ${p.firstName || ''} ${p.lastName || ''} ${p.position ? `- ${p.position}` : ''}</p>
-          `).join('')}
-        ` : ''}
+          ${principals
+            .map(
+              (p, i) => `
+            <p><strong>Principal ${i + 1}:</strong> ${p.firstName || ""} ${p.lastName || ""} ${p.position ? `- ${p.position}` : ""}</p>
+          `,
+            )
+            .join("")}
+        `
+            : ""
+        }
         
         <p style="margin-top: 20px;"><em>Generated: ${new Date().toLocaleDateString()}</em></p>
       </div>
     `
 
-    const printWindow = window.open('', '_blank')
+    const printWindow = window.open("", "_blank")
     if (printWindow) {
       printWindow.document.write(`
         <html>
@@ -417,27 +429,23 @@ export const MerchantQuickActions = ({
     }
   }
 
-  const handleSelectAll = (type: 'download' | 'print', checked: boolean) => {
-    const hasFileUploads = uploads && Object.values(uploads).some(upload => 
-      upload.uploadedUrl || upload.url
-    )
-    
+  const handleSelectAll = (type: "download" | "print", checked: boolean) => {
+    const hasFileUploads = uploads && Object.values(uploads).some((upload) => upload.uploadedUrl || upload.url)
+
     const options = {
       applicationInfo: checked,
       fileUploads: checked && hasFileUploads,
-      compressed: type === 'download' ? downloadOptions.compressed : false
+      compressed: type === "download" ? downloadOptions.compressed : false,
     }
-    
-    if (type === 'download') {
+
+    if (type === "download") {
       setDownloadOptions(options)
     } else {
       setPrintOptions(options)
     }
   }
 
-  const hasFileUploads = uploads && Object.values(uploads).some(upload => 
-    upload.uploadedUrl || upload.url
-  )
+  const hasFileUploads = uploads && Object.values(uploads).some((upload) => upload.uploadedUrl || upload.url)
 
   return (
     <>
@@ -448,15 +456,15 @@ export const MerchantQuickActions = ({
               variant="outline"
               size="sm"
               onClick={handleEmailSupport}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 bg-transparent"
             >
               <Mail className="h-4 w-4" />
               Email Support
             </Button>
-            
+
             <Dialog open={downloadDialogOpen} onOpenChange={setDownloadDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
                   <Download className="h-4 w-4" />
                   Download
                 </Button>
@@ -470,7 +478,7 @@ export const MerchantQuickActions = ({
                     <Checkbox
                       id="select-all-download"
                       checked={downloadOptions.applicationInfo && downloadOptions.fileUploads}
-                      onCheckedChange={(checked) => handleSelectAll('download', !!checked)}
+                      onCheckedChange={(checked) => handleSelectAll("download", !!checked)}
                     />
                     <label htmlFor="select-all-download" className="text-sm font-medium">
                       Select All
@@ -482,45 +490,48 @@ export const MerchantQuickActions = ({
                       <Checkbox
                         id="app-info"
                         checked={downloadOptions.applicationInfo}
-                        onCheckedChange={(checked) => 
-                          setDownloadOptions(prev => ({ ...prev, applicationInfo: !!checked }))
+                        onCheckedChange={(checked) =>
+                          setDownloadOptions((prev) => ({ ...prev, applicationInfo: !!checked }))
                         }
                       />
-                      <label htmlFor="app-info" className="text-sm">Application Summary (PDF)</label>
+                      <label htmlFor="app-info" className="text-sm">
+                        Application Summary (PDF)
+                      </label>
                     </div>
-                    
+
                     {hasFileUploads && (
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id="file-uploads"
                           checked={downloadOptions.fileUploads}
-                          onCheckedChange={(checked) => 
-                            setDownloadOptions(prev => ({ ...prev, fileUploads: !!checked }))
+                          onCheckedChange={(checked) =>
+                            setDownloadOptions((prev) => ({ ...prev, fileUploads: !!checked }))
                           }
                         />
-                        <label htmlFor="file-uploads" className="text-sm">Uploaded Documents</label>
+                        <label htmlFor="file-uploads" className="text-sm">
+                          Uploaded Documents
+                        </label>
                       </div>
                     )}
-                    
-                    {(downloadOptions.applicationInfo && downloadOptions.fileUploads) && (
+
+                    {downloadOptions.applicationInfo && downloadOptions.fileUploads && (
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id="compressed"
                           checked={downloadOptions.compressed}
-                          onCheckedChange={(checked) => 
-                            setDownloadOptions(prev => ({ ...prev, compressed: !!checked }))
+                          onCheckedChange={(checked) =>
+                            setDownloadOptions((prev) => ({ ...prev, compressed: !!checked }))
                           }
                         />
-                        <label htmlFor="compressed" className="text-sm">Download multiple files (staggered)</label>
+                        <label htmlFor="compressed" className="text-sm">
+                          Download multiple files (staggered)
+                        </label>
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setDownloadDialogOpen(false)}
-                    >
+                    <Button variant="outline" onClick={() => setDownloadDialogOpen(false)}>
                       Cancel
                     </Button>
                     <Button
@@ -540,7 +551,7 @@ export const MerchantQuickActions = ({
 
             <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
                   <Printer className="h-4 w-4" />
                   Print
                 </Button>
@@ -555,23 +566,22 @@ export const MerchantQuickActions = ({
                       <Checkbox
                         id="print-app-info"
                         checked={printOptions.applicationInfo}
-                        onCheckedChange={(checked) => 
-                          setPrintOptions(prev => ({ ...prev, applicationInfo: !!checked }))
+                        onCheckedChange={(checked) =>
+                          setPrintOptions((prev) => ({ ...prev, applicationInfo: !!checked }))
                         }
                       />
-                      <label htmlFor="print-app-info" className="text-sm">Application Summary (Simplified)</label>
+                      <label htmlFor="print-app-info" className="text-sm">
+                        Application Summary (Simplified)
+                      </label>
                     </div>
                   </div>
-                  
+
                   <p className="text-xs text-gray-500">
                     Note: File uploads cannot be printed directly. Use download option for files.
                   </p>
-                  
+
                   <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setPrintDialogOpen(false)}
-                    >
+                    <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
                       Cancel
                     </Button>
                     <Button

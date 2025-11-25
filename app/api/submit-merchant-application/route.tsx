@@ -52,7 +52,7 @@ function buildZapAirtableFields(params: {
     previousProcessor?: string // "credit processor"
     reasonForTermination?: string
     seasonalBusiness?: boolean
-    seasonalMonths?: string[]
+    seasonalMonths?: string[] | string
     usesFulfillmentHouse?: boolean
     usesThirdParties?: boolean
     thirdPartiesList?: string
@@ -223,7 +223,11 @@ function buildZapAirtableFields(params: {
     "Previous Processor": data.previousProcessor ?? "", // <-- credit processor
     "Reason For Termination": data.reasonForTermination ?? "",
     "Seasonal Business": !!data.seasonalBusiness,
-    "Seasonal Months": (data.seasonalMonths ?? []).join(", "),
+    "Seasonal Months": Array.isArray(data.seasonalMonths)
+      ? data.seasonalMonths.join(", ")
+      : typeof data.seasonalMonths === "string"
+        ? data.seasonalMonths
+        : "",
     "Uses Fulfillment House": !!data.usesFulfillmentHouse,
     "Uses Third Parties": !!data.usesThirdParties,
     "Third Parties List": data.thirdPartiesList ?? "",
@@ -466,10 +470,7 @@ export async function POST(request: Request) {
 
     // FIXED: Delete any existing upload records and create new ones
     console.log("🗑️ Cleaning up existing upload records...")
-    await supabase
-      .from("merchant_uploads")
-      .delete()
-      .eq("application_id", application.id)
+    await supabase.from("merchant_uploads").delete().eq("application_id", application.id)
 
     // Insert upload records into merchant_uploads table
     const uploadPromises: Promise<any>[] = []
@@ -482,7 +483,7 @@ export async function POST(request: Request) {
           document_type: documentType,
           file_url: fileUrl,
           upload_type: uploadType,
-        })
+        }),
       )
       console.log(`📎 Queuing upload record: ${documentType} -> ${fileUrl}`)
     })

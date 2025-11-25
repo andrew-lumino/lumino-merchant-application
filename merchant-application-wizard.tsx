@@ -287,6 +287,7 @@ export default function MerchantApplicationWizard() {
   const [applicationData, setApplicationData] = useState<any>(null)
   const [merchantEmail, setMerchantEmail] = useState("")
   const [isAgentMode, setIsAgentMode] = useState(false)
+  const [isAgentModeReady, setIsAgentModeReady] = useState(false)
   const [isSkipMode, setIsSkipMode] = useState(false)
   const [generatedLink, setGeneratedLink] = useState("")
   const [isSubmittingAgentAction, setIsSubmittingAgentAction] = useState(false)
@@ -415,6 +416,49 @@ export default function MerchantApplicationWizard() {
     return inviteId ? `lumino_draft_${inviteId}` : null
   }
 
+  const saveDraftToDatabase = async () => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const inviteId = urlParams.get("id") || applicationData?.id
+
+    if (!inviteId) {
+      console.log("[v0] No inviteId, skipping database save")
+      return
+    }
+
+    if (!userEmail) {
+      console.log("[v0] No userEmail, skipping database save")
+      return
+    }
+
+    try {
+      console.log("[v0] Saving draft to database for:", inviteId)
+      console.log("[v0] Principals being sent:", principals?.length, "entries")
+
+      const response = await fetch("/api/save-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationId: inviteId,
+          formData,
+          principals,
+          uploads,
+          currentStep,
+          timestamp: new Date().toISOString(),
+        }),
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        console.log("[v0] Draft saved to database successfully")
+      } else {
+        console.error("[v0] Draft save failed:", result.error)
+      }
+    } catch (error) {
+      console.error("[v0] Failed to save draft to database:", error)
+    }
+  }
+
+  // Initial load - no debouncing
   useEffect(() => {
     const key = getLocalStorageKey()
     if (!key) return
@@ -450,22 +494,36 @@ export default function MerchantApplicationWizard() {
 
   useEffect(() => {
     const key = getLocalStorageKey()
-    if (!key || !isAgentMode) return // Only save for agents
+    const urlParams = new URLSearchParams(window.location.search)
+    const inviteId = urlParams.get("id")
 
-    try {
-      const dataToSave = {
-        timestamp: new Date().toISOString(),
-        formData,
-        principals,
-        uploads,
-        currentStep,
+    // Skip if no invite ID or no user email
+    if (!inviteId || !userEmail) return
+
+    const debounceTimer = setTimeout(() => {
+      try {
+        // Save to localStorage for all users
+        if (key) {
+          const dataToSave = {
+            timestamp: new Date().toISOString(),
+            formData,
+            principals,
+            uploads,
+            currentStep,
+          }
+          localStorage.setItem(key, JSON.stringify(dataToSave))
+          console.log("[v0] Saved draft to localStorage")
+        }
+
+        // Save to database for logged-in users
+        saveDraftToDatabase()
+      } catch (error) {
+        console.error("[v0] Failed to save draft:", error)
       }
-      localStorage.setItem(key, JSON.stringify(dataToSave))
-      console.log("[v0] Saved draft to localStorage")
-    } catch (error) {
-      console.error("[v0] Failed to save draft:", error)
-    }
-  }, [formData, principals, uploads, currentStep, isAgentMode])
+    }, 1000) // 1 second debounce - saves as you type but not on every keystroke
+
+    return () => clearTimeout(debounceTimer)
+  }, [formData, principals, uploads, currentStep, userEmail])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -535,6 +593,7 @@ export default function MerchantApplicationWizard() {
     // Define the main logic that runs after we determine agent status
     const handleAgentStatusDetermined = (finalIsAgentMode: boolean) => {
       setIsAgentMode(finalIsAgentMode)
+      setIsAgentModeReady(true) // Mark as ready after determining agent status
 
       // Update steps with agent status
       const agentCheck = isLuminoStaff || finalIsAgentMode
@@ -1467,11 +1526,11 @@ export default function MerchantApplicationWizard() {
         id: applicationData?.id,
         principals,
         terminals: formData.terminals,
-        
+
         // 🔥 ADD THESE TWO LINES 🔥
         agent_email: userEmail || formData.agentEmail, // Use Clerk email or fallback
         agent_name: agentName || userEmail?.split("@")[0].toUpperCase() || "AGENT", // Use saved name or generate
-        
+
         uploads: Object.fromEntries(
           Object.entries(uploads)
             .map(([key, upload]) => [
