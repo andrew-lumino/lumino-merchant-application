@@ -2409,7 +2409,8 @@ Thank you!`
     <Card>
       <CardHeader className="text-center">
         <div className="mx-auto mb-4">
-          <img src="/images/design-mode/Asset%201(1).png" alt="LUMINO" className="h-12 mx-auto" />
+          {/* <img src="/images/design-mode/Asset%201(1).png" alt="LUMINO" className="h-12 mx-auto" /> */}
+          <img src="/images/lumino-logo.png" alt="LUMINO" className="h-12 mx-auto" />
           <p className="text-sm text-gray-600 mt-2">
             4201 Main St Suite 201, Houston, TX 77002 | 1-866-488-4168 | support@golumino.com | www.golumino.com
           </p>

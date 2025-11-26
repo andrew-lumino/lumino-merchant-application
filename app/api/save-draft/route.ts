@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     if (principals && principals.length > 0) {
       console.log("[v0] First principal sample:", JSON.stringify(principals[0]).substring(0, 200))
     }
+    console.log("[v0] Uploads received:", uploads ? Object.keys(uploads).length : 0, "document types")
 
     if (!applicationId) {
       return NextResponse.json({ success: false, error: "Application ID required" }, { status: 400 })
@@ -134,7 +135,7 @@ export async function POST(request: Request) {
       technicalContactEmail: "technical_contact_email",
       technicalContactPhone: "technical_contact_phone",
 
-      // Signature fields (new)
+      // Signature fields
       signatureFullName: "signature_full_name",
       certificationAck: "certification_ack",
       agreementScrolled: "agreement_scrolled",
@@ -208,6 +209,65 @@ export async function POST(request: Request) {
     if (error) {
       console.error("[v0] Error saving draft:", error.message, error.details, error.hint)
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    }
+
+    if (uploads && typeof uploads === "object" && Object.keys(uploads).length > 0) {
+      console.log("[v0] Processing uploads for draft save:", Object.keys(uploads))
+
+      for (const [documentType, uploadData] of Object.entries(uploads)) {
+        if (!uploadData) continue
+
+        const upload = uploadData as any
+        const fileUrl = upload.uploadedUrl || upload.url
+        const fileName = upload.fileName || upload.name || documentType
+
+        if (!fileUrl) {
+          console.log("[v0] Skipping upload for", documentType, "- no URL")
+          continue
+        }
+
+        // Check if this document type already exists for this application
+        const { data: existingUpload } = await supabase
+          .from("merchant_uploads")
+          .select("id")
+          .eq("application_id", applicationId)
+          .eq("document_type", documentType)
+          .single()
+
+        if (existingUpload) {
+          // Update existing upload
+          const { error: updateError } = await supabase
+            .from("merchant_uploads")
+            .update({
+              file_url: fileUrl,
+              file_name: fileName,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingUpload.id)
+
+          if (updateError) {
+            console.error("[v0] Error updating upload:", documentType, updateError.message)
+          } else {
+            console.log("[v0] Updated existing upload for:", documentType)
+          }
+        } else {
+          // Insert new upload
+          const { error: insertError } = await supabase.from("merchant_uploads").insert({
+            application_id: applicationId,
+            document_type: documentType,
+            file_url: fileUrl,
+            file_name: fileName,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+
+          if (insertError) {
+            console.error("[v0] Error inserting upload:", documentType, insertError.message)
+          } else {
+            console.log("[v0] Inserted new upload for:", documentType)
+          }
+        }
+      }
     }
 
     console.log("[v0] Draft saved successfully, principals count:", data?.[0]?.principals?.length || 0)

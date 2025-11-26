@@ -879,13 +879,13 @@ export default function MerchantApplicationsTable({
                                   <h3 className="text-lg font-semibold mb-3">Merchant Information</h3>
                                   <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div>
-                                      <strong>DBA Name:</strong> {selectedApplication.dba_name || "-"}
+                                      <strong>DBA Name:</strong> {selectedApplication.dba_name || "N/A"}
                                     </div>
                                     <div>
-                                      <strong>DBA Email:</strong> {selectedApplication.dba_email || "-"}
+                                      <strong>DBA Email:</strong> {selectedApplication.dba_email || "N/A"}
                                     </div>
                                     <div>
-                                      <strong>Legal Name:</strong> {selectedApplication.legal_name || "-"}
+                                      <strong>Legal Name:</strong> {selectedApplication.legal_name || "N/A"}
                                     </div>
                                     <div>
                                       <strong>Federal Tax ID:</strong>
@@ -893,17 +893,21 @@ export default function MerchantApplicationsTable({
                                     </div>
                                     <div>
                                       <strong>Phone:</strong>{" "}
-                                      <PhoneNumber value={selectedApplication.dba_phone || null} />
+                                      {selectedApplication.dba_phone ? (
+                                        <PhoneNumber value={selectedApplication.dba_phone} />
+                                      ) : (
+                                        "N/A"
+                                      )}
                                     </div>
                                     <div>
-                                      <strong>Website:</strong> {selectedApplication.website_url || "-"}
+                                      <strong>Website:</strong> {selectedApplication.website_url || "N/A"}
                                     </div>
                                     <div>
-                                      <strong>Business Type:</strong> {selectedApplication.business_type || "-"}
+                                      <strong>Business Type:</strong> {selectedApplication.business_type || "N/A"}
                                     </div>
                                     <div>
                                       <strong>Ownership Type:</strong>{" "}
-                                      {autoTitleCase(selectedApplication.ownership_type) || "-"}
+                                      {autoTitleCase(selectedApplication.ownership_type) || "N/A"}
                                     </div>
                                     <div>
                                       <strong>Paperless Statements:</strong>{" "}
@@ -934,7 +938,7 @@ export default function MerchantApplicationsTable({
                                           ))}
                                         </ul>
                                       ) : (
-                                        "-"
+                                        "N/A"
                                       )}
                                     </div>
                                   </div>
@@ -945,92 +949,160 @@ export default function MerchantApplicationsTable({
                                   <h3 className="text-lg font-semibold mb-3">DBA Address</h3>
                                   <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div>
-                                      <strong>Address Line 1:</strong> {selectedApplication.dba_address_line1 || "-"}
+                                      <strong>Address Line 1:</strong> {selectedApplication.dba_address_line1 || "N/A"}
                                     </div>
                                     <div>
-                                      <strong>Address Line 2:</strong> {selectedApplication.dba_address_line2 || "-"}
+                                      <strong>Address Line 2:</strong> {selectedApplication.dba_address_line2 || "N/A"}
                                     </div>
                                     <div>
-                                      <strong>City:</strong> {selectedApplication.dba_city || "-"}
+                                      <strong>City:</strong> {selectedApplication.dba_city || "N/A"}
                                     </div>
                                     <div>
-                                      <strong>State:</strong> {selectedApplication.dba_state || "-"}
+                                      <strong>State:</strong> {selectedApplication.dba_state || "N/A"}
                                     </div>
                                     <div>
-                                      <strong>ZIP Code:</strong> {selectedApplication.dba_zip || "-"}
+                                      <strong>ZIP Code:</strong> {selectedApplication.dba_zip || "N/A"}
                                     </div>
                                     <div>
-                                      <strong>ZIP Extended:</strong> {selectedApplication.dba_zip_extended || "-"}
+                                      <strong>ZIP Extended:</strong> {selectedApplication.dba_zip_extended || "N/A"}
                                     </div>
                                   </div>
                                 </div>
 
-                                {/* Legal Address (if different) */}
-                                {selectedApplication.legal_differs && (
-                                  <div>
-                                    <h3 className="text-lg font-semibold mb-3">Legal Address</h3>
-                                    <div className="grid grid-cols-2 gap-4 text-sm">
-                                      <div>
-                                        <strong>Address Line 1:</strong>{" "}
-                                        {selectedApplication.legal_address_line1 || "-"}
-                                      </div>
-                                      <div>
-                                        <strong>Address Line 2:</strong>{" "}
-                                        {selectedApplication.legal_address_line2 || "-"}
-                                      </div>
-                                      <div>
-                                        <strong>City:</strong> {selectedApplication.legal_city || "-"}
-                                      </div>
-                                      <div>
-                                        <strong>State:</strong> {selectedApplication.legal_state || "-"}
-                                      </div>
-                                      <div>
-                                        <strong>ZIP Code:</strong> {selectedApplication.legal_zip || "-"}
-                                      </div>
-                                      <div>
-                                        <strong>ZIP Extended:</strong> {selectedApplication.legal_zip_extended || "-"}
-                                      </div>
+                                {/* Legal Address */}
+                                <div>
+                                  <h3 className="text-lg font-semibold mb-3">Legal Address</h3>
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <strong>Different from DBA:</strong>{" "}
+                                      {selectedApplication.legal_differs ? "Yes" : "No"}
+                                    </div>
+                                    <div>
+                                      <strong>Address Line 1:</strong>{" "}
+                                      {selectedApplication.legal_differs
+                                        ? selectedApplication.legal_address_line1 || "N/A"
+                                        : "(Same as DBA)"}
+                                    </div>
+                                    <div>
+                                      <strong>Address Line 2:</strong>{" "}
+                                      {selectedApplication.legal_differs
+                                        ? selectedApplication.legal_address_line2 || "N/A"
+                                        : "(Same as DBA)"}
+                                    </div>
+                                    <div>
+                                      <strong>City:</strong>{" "}
+                                      {selectedApplication.legal_differs
+                                        ? selectedApplication.legal_city || "N/A"
+                                        : "(Same as DBA)"}
+                                    </div>
+                                    <div>
+                                      <strong>State:</strong>{" "}
+                                      {selectedApplication.legal_differs
+                                        ? selectedApplication.legal_state || "N/A"
+                                        : "(Same as DBA)"}
+                                    </div>
+                                    <div>
+                                      <strong>ZIP Code:</strong>{" "}
+                                      {selectedApplication.legal_differs
+                                        ? selectedApplication.legal_zip || "N/A"
+                                        : "(Same as DBA)"}
+                                    </div>
+                                    <div>
+                                      <strong>ZIP Extended:</strong>{" "}
+                                      {selectedApplication.legal_differs
+                                        ? selectedApplication.legal_zip_extended || "N/A"
+                                        : "(Same as DBA)"}
                                     </div>
                                   </div>
-                                )}
+                                </div>
+
+                                <div>
+                                  <h3 className="text-lg font-semibold mb-3">Account Rates</h3>
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <strong>Rate Program:</strong> {selectedApplication.rate_program || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Rate Program Value:</strong>{" "}
+                                      {selectedApplication.rate_program_value || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Accept Amex:</strong>{" "}
+                                      {selectedApplication.accept_amex === null
+                                        ? "N/A"
+                                        : selectedApplication.accept_amex
+                                          ? "Yes"
+                                          : "No"}
+                                    </div>
+                                    <div>
+                                      <strong>Accept Debit:</strong>{" "}
+                                      {selectedApplication.accept_debit === null
+                                        ? "N/A"
+                                        : selectedApplication.accept_debit
+                                          ? "Yes"
+                                          : "No"}
+                                    </div>
+                                    <div>
+                                      <strong>Accept EBT:</strong>{" "}
+                                      {selectedApplication.accept_ebt === null
+                                        ? "N/A"
+                                        : selectedApplication.accept_ebt
+                                          ? "Yes"
+                                          : "No"}
+                                    </div>
+                                  </div>
+                                </div>
 
                                 {/* Business Profile */}
                                 <div>
                                   <h3 className="text-lg font-semibold mb-3">Business Profile</h3>
                                   <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div>
-                                      <strong>Monthly Volume:</strong> $
-                                      {selectedApplication.monthly_volume?.toLocaleString() || "-"}
+                                      <strong>Monthly Volume:</strong>{" "}
+                                      {selectedApplication.monthly_volume
+                                        ? `$${selectedApplication.monthly_volume.toLocaleString()}`
+                                        : "N/A"}
                                     </div>
                                     <div>
-                                      <strong>Average Ticket:</strong> $
-                                      {selectedApplication.average_ticket?.toLocaleString() || "-"}
+                                      <strong>Average Ticket:</strong>{" "}
+                                      {selectedApplication.average_ticket
+                                        ? `$${selectedApplication.average_ticket.toLocaleString()}`
+                                        : "N/A"}
                                     </div>
                                     <div>
-                                      <strong>Highest Ticket:</strong> $
-                                      {selectedApplication.highest_ticket?.toLocaleString() || "-"}
+                                      <strong>Highest Ticket:</strong>{" "}
+                                      {selectedApplication.highest_ticket
+                                        ? `$${selectedApplication.highest_ticket.toLocaleString()}`
+                                        : "N/A"}
                                     </div>
                                     <div>
-                                      <strong>Card Swiped %:</strong> {selectedApplication.pct_card_swiped || "-"}%
+                                      <strong>Card Swiped %:</strong>{" "}
+                                      {selectedApplication.pct_card_swiped !== null
+                                        ? `${selectedApplication.pct_card_swiped}%`
+                                        : "N/A"}
                                     </div>
                                     <div>
-                                      <strong>Manual Imprint %:</strong> {selectedApplication.pct_manual_imprint || "-"}
-                                      %
+                                      <strong>Manual Imprint %:</strong>{" "}
+                                      {selectedApplication.pct_manual_imprint !== null
+                                        ? `${selectedApplication.pct_manual_imprint}%`
+                                        : "N/A"}
                                     </div>
                                     <div>
                                       <strong>Manual No Imprint %:</strong>{" "}
-                                      {selectedApplication.pct_manual_no_imprint || "-"}%
+                                      {selectedApplication.pct_manual_no_imprint !== null
+                                        ? `${selectedApplication.pct_manual_no_imprint}%`
+                                        : "N/A"}
                                     </div>
                                     <div>
-                                      <strong>Refund Policy:</strong> {selectedApplication.refund_policy || "-"}
+                                      <strong>Refund Policy:</strong> {selectedApplication.refund_policy || "N/A"}
                                     </div>
                                     <div>
                                       <strong>Previous Processor:</strong>{" "}
-                                      {selectedApplication.previous_processor || "-"}
+                                      {selectedApplication.previous_processor || "N/A"}
                                     </div>
                                     <div className="col-span-2">
                                       <strong>Reason for Termination:</strong>{" "}
-                                      {selectedApplication.reason_for_termination || "-"}
+                                      {selectedApplication.reason_for_termination || "N/A"}
                                     </div>
                                   </div>
                                 </div>
@@ -1043,50 +1115,48 @@ export default function MerchantApplicationsTable({
                                       <strong>Seasonal Business:</strong>{" "}
                                       {selectedApplication.seasonal_business ? "Yes" : "No"}
                                     </div>
-                                    {selectedApplication.seasonal_business && (
-                                      <div>
-                                        <strong>Seasonal Months:</strong> {(() => {
-                                          const months = selectedApplication.seasonal_months
-                                          if (!months) return "-"
-                                          if (typeof months === "string") {
-                                            if (months.startsWith("[") && months.endsWith("]")) {
-                                              try {
-                                                const parsed = JSON.parse(months)
-                                                return Array.isArray(parsed) ? parsed.join(", ") : months
-                                              } catch {
-                                                return months
-                                              }
+                                    <div>
+                                      <strong>Seasonal Months:</strong> {(() => {
+                                        const months = selectedApplication.seasonal_months
+                                        if (!months) return "N/A"
+                                        if (typeof months === "string") {
+                                          if (months.startsWith("[") && months.endsWith("]")) {
+                                            try {
+                                              const parsed = JSON.parse(months)
+                                              return Array.isArray(parsed) ? parsed.join(", ") : months
+                                            } catch {
+                                              return months
                                             }
-                                            if (months.length > 3 && !months.includes(" ") && !months.includes(",")) {
-                                              const monthAbbrevs = [
-                                                "Jan",
-                                                "Feb",
-                                                "Mar",
-                                                "Apr",
-                                                "May",
-                                                "Jun",
-                                                "Jul",
-                                                "Aug",
-                                                "Sep",
-                                                "Oct",
-                                                "Nov",
-                                                "Dec",
-                                              ]
-                                              let result = months
-                                              monthAbbrevs.forEach((month) => {
-                                                result = result.replace(new RegExp(month, "g"), `, ${month}`)
-                                              })
-                                              return result.replace(/^,\s*/, "").replace(/,\s*,/g, ",")
-                                            }
-                                            return months
                                           }
-                                          if (Array.isArray(months)) {
-                                            return months.join(", ")
+                                          if (months.length > 3 && !months.includes(" ") && !months.includes(",")) {
+                                            const monthAbbrevs = [
+                                              "Jan",
+                                              "Feb",
+                                              "Mar",
+                                              "Apr",
+                                              "May",
+                                              "Jun",
+                                              "Jul",
+                                              "Aug",
+                                              "Sep",
+                                              "Oct",
+                                              "Nov",
+                                              "Dec",
+                                            ]
+                                            let result = months
+                                            monthAbbrevs.forEach((month) => {
+                                              result = result.replace(new RegExp(month, "g"), `, ${month}`)
+                                            })
+                                            return result.replace(/^,\s*/, "").replace(/,\s*,/g, ",")
                                           }
-                                          return String(months)
-                                        })()}
-                                      </div>
-                                    )}
+                                          return months
+                                        }
+                                        if (Array.isArray(months)) {
+                                          return months.join(", ")
+                                        }
+                                        return String(months)
+                                      })()}
+                                    </div>
                                     <div>
                                       <strong>Uses Fulfillment House:</strong>{" "}
                                       {selectedApplication.uses_fulfillment_house ? "Yes" : "No"}
@@ -1095,12 +1165,116 @@ export default function MerchantApplicationsTable({
                                       <strong>Uses Third Parties:</strong>{" "}
                                       {selectedApplication.uses_third_parties ? "Yes" : "No"}
                                     </div>
-                                    {selectedApplication.uses_third_parties && (
-                                      <div className="col-span-2">
-                                        <strong>Third Parties List:</strong>{" "}
-                                        {selectedApplication.third_parties_list || "-"}
-                                      </div>
-                                    )}
+                                    <div className="col-span-2">
+                                      <strong>Third Parties List:</strong>{" "}
+                                      {selectedApplication.third_parties_list || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <h3 className="text-lg font-semibold mb-3">Managing Member</h3>
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <strong>Same as Principal:</strong>{" "}
+                                      {selectedApplication.managing_member_same_as ? "Yes" : "No"}
+                                    </div>
+                                    <div>
+                                      <strong>Reference:</strong>{" "}
+                                      {selectedApplication.managing_member_reference || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>First Name:</strong>{" "}
+                                      {selectedApplication.managing_member_first_name || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Last Name:</strong>{" "}
+                                      {selectedApplication.managing_member_last_name || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Email:</strong> {selectedApplication.managing_member_email || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Phone:</strong>{" "}
+                                      {selectedApplication.managing_member_phone ? (
+                                        <PhoneNumber value={selectedApplication.managing_member_phone} />
+                                      ) : (
+                                        "N/A"
+                                      )}
+                                    </div>
+                                    <div>
+                                      <strong>Position:</strong> {selectedApplication.managing_member_position || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <h3 className="text-lg font-semibold mb-3">Authorized Contact</h3>
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <strong>Same as Managing Member:</strong>{" "}
+                                      {selectedApplication.authorized_contact_same_as ? "Yes" : "No"}
+                                    </div>
+                                    <div>
+                                      <strong>Name:</strong> {selectedApplication.authorized_contact_name || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Email:</strong> {selectedApplication.authorized_contact_email || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Phone:</strong>{" "}
+                                      {selectedApplication.authorized_contact_phone ? (
+                                        <PhoneNumber value={selectedApplication.authorized_contact_phone} />
+                                      ) : (
+                                        "N/A"
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <h3 className="text-lg font-semibold mb-3">Technical Contact</h3>
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <strong>Same as Managing Member:</strong>{" "}
+                                      {selectedApplication.technical_contact_same_as ? "Yes" : "No"}
+                                    </div>
+                                    <div>
+                                      <strong>Name:</strong> {selectedApplication.technical_contact_name || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Email:</strong> {selectedApplication.technical_contact_email || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Phone:</strong>{" "}
+                                      {selectedApplication.technical_contact_phone ? (
+                                        <PhoneNumber value={selectedApplication.technical_contact_phone} />
+                                      ) : (
+                                        "N/A"
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Signature & Agreement */}
+                                <div>
+                                  <h3 className="text-lg font-semibold mb-3">Signature & Agreement</h3>
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <strong>Agreement Scrolled:</strong>{" "}
+                                      {selectedApplication.agreement_scrolled ? "Yes" : "No"}
+                                    </div>
+                                    <div>
+                                      <strong>Certification Acknowledged:</strong>{" "}
+                                      {selectedApplication.certification_ack ? "Yes" : "No"}
+                                    </div>
+                                    <div>
+                                      <strong>Signature Full Name:</strong>{" "}
+                                      {selectedApplication.signature_full_name || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Signature Date:</strong> {selectedApplication.signature_date || "N/A"}
+                                    </div>
                                   </div>
                                 </div>
 
@@ -1109,100 +1283,179 @@ export default function MerchantApplicationsTable({
                                   <h3 className="text-lg font-semibold mb-3">Banking Information</h3>
                                   <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div>
-                                      <strong>Bank Name:</strong> {selectedApplication.bank_name || "-"}
+                                      <strong>Bank Name:</strong> {selectedApplication.bank_name || "N/A"}
                                     </div>
                                     <div>
                                       <strong>Routing Number:</strong>
-                                      <SensitiveField
-                                        value={selectedApplication.routing_number}
-                                        maskPattern="routing"
-                                      />
+                                      {selectedApplication.routing_number ? (
+                                        <SensitiveField
+                                          value={selectedApplication.routing_number}
+                                          maskPattern="routing"
+                                        />
+                                      ) : (
+                                        " N/A"
+                                      )}
                                     </div>
                                     <div>
                                       <strong>Account Number:</strong>
-                                      <SensitiveField
-                                        value={selectedApplication.account_number}
-                                        maskPattern="account"
-                                      />
+                                      {selectedApplication.account_number ? (
+                                        <SensitiveField
+                                          value={selectedApplication.account_number}
+                                          maskPattern="account"
+                                        />
+                                      ) : (
+                                        " N/A"
+                                      )}
                                     </div>
                                     <div>
-                                      <strong>Batch Time:</strong> {selectedApplication.batch_time || "-"}
+                                      <strong>Batch Time:</strong> {selectedApplication.batch_time || "N/A"}
                                     </div>
                                   </div>
                                 </div>
 
                                 {/* Principals */}
-                                {selectedApplication.principals && (
-                                  <div>
-                                    <h3 className="text-lg font-semibold mb-3">Principals</h3>
-                                    {(() => {
-                                      try {
-                                        const principals =
-                                          typeof selectedApplication.principals === "string"
-                                            ? JSON.parse(selectedApplication.principals)
-                                            : selectedApplication.principals
+                                <div>
+                                  <h3 className="text-lg font-semibold mb-3">Principals</h3>
+                                  {(() => {
+                                    try {
+                                      const principals =
+                                        typeof selectedApplication.principals === "string"
+                                          ? JSON.parse(selectedApplication.principals)
+                                          : selectedApplication.principals
 
-                                        if (Array.isArray(principals)) {
-                                          return principals.map((principal: any, index: number) => (
-                                            <div key={index} className="border rounded p-3 mb-3">
-                                              <h4 className="font-medium mb-2">Principal {index + 1}</h4>
-                                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                                <div>
-                                                  <strong>Name:</strong> {principal.firstName} {principal.lastName}
-                                                </div>
-                                                <div>
-                                                  <strong>Email:</strong> {principal.email || "-"}
-                                                </div>
-                                                <div>
-                                                  <strong>Position:</strong> {principal.position || "-"}
-                                                </div>
-                                                <div>
-                                                  <strong>Equity:</strong> {principal.equity || "-"}%
-                                                </div>
-                                                <div>
-                                                  <strong>Phone:</strong>{" "}
-                                                  <PhoneNumber value={principal.phone || null} />
-                                                </div>
-                                                <div>
-                                                  <strong>Address:</strong> {(() => {
-                                                    const addressParts = [
-                                                      principal.addressLine1,
-                                                      principal.addressLine2,
-                                                      [principal.city, principal.state, principal.zip]
-                                                        .filter(Boolean)
-                                                        .join(", "),
-                                                    ].filter(Boolean)
-                                                    return addressParts.length > 0 ? addressParts.join(", ") : "-"
-                                                  })()}
-                                                </div>
-                                                <div>
-                                                  <strong>City:</strong> {principal.city || "-"}
-                                                </div>
-                                                <div>
-                                                  <strong>State:</strong> {principal.state || "-"}
-                                                </div>
-                                                <div>
-                                                  <strong>ZIP:</strong> {principal.zip || "-"}
-                                                </div>
-                                                <div>
-                                                  <strong>SSN:</strong>
+                                      if (Array.isArray(principals) && principals.length > 0) {
+                                        return principals.map((principal: any, index: number) => (
+                                          <div key={index} className="border rounded p-3 mb-3">
+                                            <h4 className="font-medium mb-2">Principal {index + 1}</h4>
+                                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                              <div>
+                                                <strong>First Name:</strong> {principal.firstName || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>Last Name:</strong> {principal.lastName || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>Email:</strong> {principal.email || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>Position:</strong> {principal.position || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>Equity:</strong>{" "}
+                                                {principal.equity ? `${principal.equity}%` : "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>Phone:</strong>{" "}
+                                                {principal.phone ? <PhoneNumber value={principal.phone} /> : "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>Address Line 1:</strong> {principal.addressLine1 || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>Address Line 2:</strong> {principal.addressLine2 || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>City:</strong> {principal.city || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>State:</strong> {principal.state || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>ZIP:</strong> {principal.zip || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>SSN:</strong>
+                                                {principal.ssn ? (
                                                   <SensitiveField value={principal.ssn} maskPattern="ssn" />
-                                                </div>
-                                                <div>
-                                                  <strong>Date of Birth:</strong> {principal.dob || "-"}
-                                                </div>
+                                                ) : (
+                                                  " N/A"
+                                                )}
+                                              </div>
+                                              <div>
+                                                <strong>Date of Birth:</strong> {principal.dob || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>ID Type:</strong> {principal.idType || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>ID Number:</strong>{" "}
+                                                {principal.idNumber ? (
+                                                  <SensitiveField value={principal.idNumber} maskPattern="ssn" />
+                                                ) : (
+                                                  "N/A"
+                                                )}
+                                              </div>
+                                              <div>
+                                                <strong>ID Issue State:</strong> {principal.idIssueState || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>ID Issue Date:</strong> {principal.idIssueDate || "N/A"}
+                                              </div>
+                                              <div>
+                                                <strong>ID Expiry Date:</strong> {principal.idExpiryDate || "N/A"}
                                               </div>
                                             </div>
-                                          ))
-                                        }
-                                      } catch (error) {
-                                        console.error("Error parsing principals:", error)
-                                        return <p className="text-gray-500">Error loading principals data</p>
+                                          </div>
+                                        ))
                                       }
-                                      return <p className="text-gray-500">No principals data available</p>
-                                    })()}
+                                      return <p className="text-gray-500">No principals added</p>
+                                    } catch (error) {
+                                      console.error("Error parsing principals:", error)
+                                      return <p className="text-gray-500">Error loading principals data</p>
+                                    }
+                                  })()}
+                                </div>
+
+                                <div>
+                                  <h3 className="text-lg font-semibold mb-3">Signature & Agreement</h3>
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <strong>Agreement Scrolled:</strong>{" "}
+                                      {selectedApplication.agreement_scrolled ? "Yes" : "No"}
+                                    </div>
+                                    <div>
+                                      <strong>Certification Acknowledged:</strong>{" "}
+                                      {selectedApplication.certification_ack ? "Yes" : "No"}
+                                    </div>
+                                    <div>
+                                      <strong>Signature Full Name:</strong>{" "}
+                                      {selectedApplication.signature_full_name || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Signature Date:</strong> {selectedApplication.signature_date || "N/A"}
+                                    </div>
                                   </div>
-                                )}
+                                </div>
+
+                                <div>
+                                  <h3 className="text-lg font-semibold mb-3">Application Meta</h3>
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <strong>Application ID:</strong> {selectedApplication.id || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Status:</strong> {selectedApplication.status || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Agent Name:</strong> {selectedApplication.agent_name || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Agent Email:</strong> {selectedApplication.agent_email || "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Created At:</strong>{" "}
+                                      {selectedApplication.created_at
+                                        ? new Date(selectedApplication.created_at).toLocaleString()
+                                        : "N/A"}
+                                    </div>
+                                    <div>
+                                      <strong>Updated At:</strong>{" "}
+                                      {selectedApplication.updated_at
+                                        ? new Date(selectedApplication.updated_at).toLocaleString()
+                                        : "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             </TabsContent>
 
