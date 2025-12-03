@@ -964,58 +964,11 @@ export default function MerchantApplicationsTable({
                                 <span className="block">
                                   Submitted on: {new Date(selectedApplication.created_at).toLocaleString()}
                                 </span>
-                                <span className="block flex items-center gap-2">
+                                <span className="block">
                                   Account Manager:{" "}
-                                  {editingAgent ? (
-                                    <span className="inline-flex items-center gap-2">
-                                      <Input
-                                        value={editAgentName}
-                                        onChange={(e) => setEditAgentName(e.target.value)}
-                                        placeholder="Agent Name"
-                                        className="h-7 w-32 text-sm"
-                                      />
-                                      <Input
-                                        value={editAgentEmail}
-                                        onChange={(e) => setEditAgentEmail(e.target.value)}
-                                        placeholder="Agent Email"
-                                        className="h-7 w-48 text-sm"
-                                      />
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7 px-2 bg-transparent"
-                                        onClick={handleSaveAgent}
-                                        disabled={savingAgent}
-                                      >
-                                        {savingAgent ? "Saving..." : "Save"}
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-7 px-2"
-                                        onClick={() => setEditingAgent(false)}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1">
-                                      {selectedApplication.agent_name ||
-                                        extractUsername(selectedApplication.agent_email) ||
-                                        "DIRECT"}
-                                      <button
-                                        onClick={() => {
-                                          setEditAgentName(selectedApplication.agent_name || "")
-                                          setEditAgentEmail(selectedApplication.agent_email || "")
-                                          setEditingAgent(true)
-                                        }}
-                                        className="text-gray-400 hover:text-gray-600 ml-1"
-                                        title="Edit Account Manager"
-                                      >
-                                        <Pencil className="h-3 w-3" />
-                                      </button>
-                                    </span>
-                                  )}
+                                  {selectedApplication.agent_name ||
+                                    extractUsername(selectedApplication.agent_email) ||
+                                    "DIRECT"}
                                 </span>
                               </div>
                             </div>
