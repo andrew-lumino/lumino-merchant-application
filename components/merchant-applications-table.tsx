@@ -164,9 +164,12 @@ export default function MerchantApplicationsTable({
     try {
       const res = await fetch(`/api/merchant-applications?page=${page + 1}&limit=${ITEMS_PER_PAGE}`)
       const data = await res.json()
-      if (data.length < ITEMS_PER_PAGE) setHasMore(false)
-      setApplications((prev) => [...prev, ...data])
-      setPage((prev) => prev + 1)
+      const newApps = data.applications || data || []
+      if (!Array.isArray(newApps) || newApps.length < ITEMS_PER_PAGE) setHasMore(false)
+      if (Array.isArray(newApps)) {
+        setApplications((prev) => [...prev, ...newApps])
+        setPage((prev) => prev + 1)
+      }
     } catch (error) {
       console.error("Error loading more applications:", error)
     } finally {
@@ -246,9 +249,9 @@ export default function MerchantApplicationsTable({
       setLoading(true)
       const res = await fetch("/api/merchant-applications")
       const data = await res.json()
-      setApplications(data.slice(0, ITEMS_PER_PAGE))
+      setApplications(data.applications ? data.applications.slice(0, ITEMS_PER_PAGE) : []) // Ensure we handle potential API response structure
       setPage(1)
-      setHasMore(data.length > ITEMS_PER_PAGE)
+      setHasMore(data.applications ? data.applications.length > ITEMS_PER_PAGE : false) // Adjust hasMore based on actual data
     } catch (error) {
       console.error("Error refreshing applications:", error)
       alert("Failed to refresh applications.")
