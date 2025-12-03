@@ -9,7 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   MoreHorizontal,
   Download,
@@ -25,6 +31,7 @@ import {
   Save,
   Mail,
   FolderDown,
+  Pencil,
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -83,6 +90,10 @@ export default function MerchantApplicationsTable({
   const [suggestions, setSuggestions] = useState<typeof SEARCH_PREFIXES>([])
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0)
   const searchContainerRef = useRef<HTMLDivElement>(null)
+  const [editingAgent, setEditingAgent] = useState(false)
+  const [editAgentName, setEditAgentName] = useState("")
+  const [editAgentEmail, setEditAgentEmail] = useState("")
+  const [savingAgent, setSavingAgent] = useState(false)
 
   useEffect(() => {
     if (selectedApplication) setNotes(selectedApplication.notes || [])
@@ -149,6 +160,48 @@ export default function MerchantApplicationsTable({
     const updatedNotes = notes.filter((note) => note.id !== noteId)
     const success = await handleUpdateNotes(updatedNotes)
     if (success) toast({ title: "Success", description: "Note deleted." })
+  }
+
+  const handleSaveAgent = async () => {
+    if (!selectedApplication) return
+
+    setSavingAgent(true)
+    try {
+      const res = await fetch("/api/update-application-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationId: selectedApplication.id,
+          agentName: editAgentName,
+          agentEmail: editAgentEmail,
+        }),
+      })
+
+      const result = await res.json()
+      if (result.success) {
+        // Update local state
+        setApplications((prev) =>
+          prev.map((app) =>
+            app.id === selectedApplication.id
+              ? { ...app, agent_name: editAgentName, agent_email: editAgentEmail }
+              : app,
+          ),
+        )
+        setSelectedApplication({
+          ...selectedApplication,
+          agent_name: editAgentName,
+          agent_email: editAgentEmail,
+        })
+        setEditingAgent(false)
+      } else {
+        alert("Failed to update agent: " + result.error)
+      }
+    } catch (error) {
+      console.error("Error saving agent:", error)
+      alert("Failed to update agent")
+    } finally {
+      setSavingAgent(false)
+    }
   }
 
   const ITEMS_PER_PAGE = 20
@@ -801,6 +854,13 @@ export default function MerchantApplicationsTable({
                         if (!open) {
                           setSelectedApplication(null)
                           setEditingNoteId(null) // Reset editing state on close
+                          setEditingAgent(false) // Reset editing agent state on close
+                        } else {
+                          // Pre-fill editing fields when opening dialog
+                          if (app.agent_name || app.agent_email) {
+                            setEditAgentName(app.agent_name || "")
+                            setEditAgentEmail(app.agent_email || "")
+                          }
                         }
                       }}
                     >
@@ -830,6 +890,7 @@ export default function MerchantApplicationsTable({
                             <FolderDown className="mr-2 h-4 w-4" />
                             Download All Files
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onSelect={() => {
                               setAppToDelete(app)
@@ -851,6 +912,50 @@ export default function MerchantApplicationsTable({
                                   Application Details: {selectedApplication.dba_name || "Unknown"}
                                 </DialogTitle>
                               </DialogHeader>
+                              {/* Agent editing part */}
+                              <div className="flex items-center gap-2">
+                                {editingAgent ? (
+                                  <>
+                                    <Input
+                                      value={editAgentName}
+                                      onChange={(e) => setEditAgentName(e.target.value)}
+                                      placeholder="Agent Name"
+                                      className="h-8 w-32"
+                                    />
+                                    <Input
+                                      value={editAgentEmail}
+                                      onChange={(e) => setEditAgentEmail(e.target.value)}
+                                      placeholder="Agent Email"
+                                      className="h-8 w-48"
+                                    />
+                                    <Button size="sm" onClick={handleSaveAgent} disabled={savingAgent}>
+                                      {savingAgent ? "Saving..." : "Save"}
+                                    </Button>
+                                    <Button size="sm" variant="ghost" onClick={() => setEditingAgent(false)}>
+                                      Cancel
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            setEditingAgent(true)
+                                            setEditAgentName(selectedApplication.agent_name || "")
+                                            setEditAgentEmail(selectedApplication.agent_email || "")
+                                          }}
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="bottom">Edit Account Manager</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </div>
                             </div>
 
                             {/* Submission Info */}
@@ -859,11 +964,58 @@ export default function MerchantApplicationsTable({
                                 <span className="block">
                                   Submitted on: {new Date(selectedApplication.created_at).toLocaleString()}
                                 </span>
-                                <span className="block">
+                                <span className="block flex items-center gap-2">
                                   Account Manager:{" "}
-                                  {selectedApplication.agent_name ||
-                                    extractUsername(selectedApplication.agent_email) ||
-                                    "DIRECT"}
+                                  {editingAgent ? (
+                                    <span className="inline-flex items-center gap-2">
+                                      <Input
+                                        value={editAgentName}
+                                        onChange={(e) => setEditAgentName(e.target.value)}
+                                        placeholder="Agent Name"
+                                        className="h-7 w-32 text-sm"
+                                      />
+                                      <Input
+                                        value={editAgentEmail}
+                                        onChange={(e) => setEditAgentEmail(e.target.value)}
+                                        placeholder="Agent Email"
+                                        className="h-7 w-48 text-sm"
+                                      />
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-2 bg-transparent"
+                                        onClick={handleSaveAgent}
+                                        disabled={savingAgent}
+                                      >
+                                        {savingAgent ? "Saving..." : "Save"}
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 px-2"
+                                        onClick={() => setEditingAgent(false)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1">
+                                      {selectedApplication.agent_name ||
+                                        extractUsername(selectedApplication.agent_email) ||
+                                        "DIRECT"}
+                                      <button
+                                        onClick={() => {
+                                          setEditAgentName(selectedApplication.agent_name || "")
+                                          setEditAgentEmail(selectedApplication.agent_email || "")
+                                          setEditingAgent(true)
+                                        }}
+                                        className="text-gray-400 hover:text-gray-600 ml-1"
+                                        title="Edit Account Manager"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </button>
+                                    </span>
+                                  )}
                                 </span>
                               </div>
                             </div>

@@ -16,6 +16,7 @@ function buildZapAirtableFields(params: {
   applicationId: string
   data: {
     agentEmail?: string
+    agentName?: string
     dbaName?: string
     dbaEmail?: string
     dbaPhone?: string
@@ -199,6 +200,7 @@ function buildZapAirtableFields(params: {
 
     // basic
     "Agent Email": data.agentEmail ?? "",
+    "Agent Name": data.agentName ?? "",
     "Dba Name": data.dbaName ?? "",
     "Dba Email": data.dbaEmail ?? "",
     "Dba Phone": data.dbaPhone ?? "",
@@ -452,6 +454,7 @@ export async function POST(request: Request) {
         .from("merchant_applications")
         .insert({
           agent_email: data.agentEmail || null,
+          agent_name: data.agentName || null,
           ...updateData,
         })
         .select()
