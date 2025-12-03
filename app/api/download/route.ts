@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { validateUrl } from "@/lib/auth"
 
-const ALLOWED_DOMAINS = ["blob.vercel-storage.com", "public.blob.vercel-storage.com", "golumino.com", "supabase.co"]
+const ALLOWED_DOMAINS = ["blob.vercel-storage.com", "public.blob.vercel-storage.com", "lumino.io", "supabase.co"]
 
 export async function GET(request: Request) {
   try {

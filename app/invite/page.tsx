@@ -226,7 +226,7 @@ export default function InvitePage() {
   }
 
   const handleCopyApplicationLink = (inviteId: string) => {
-    const link = `https://apply.golumino.com/?id=${inviteId}`
+    const link = `https://apply.lumino.io/?id=${inviteId}`
     navigator.clipboard.writeText(link)
     toast({
       title: "Copied!",
@@ -245,7 +245,7 @@ export default function InvitePage() {
       return
     }
 
-    const link = `https://apply.golumino.com/?id=${invite.id}`
+    const link = `https://apply.lumino.io/?id=${invite.id}`
     const subject = encodeURIComponent("Your Lumino Merchant Application")
     const body = encodeURIComponent(`Hello,
 
@@ -268,7 +268,7 @@ export default function InvitePage() {
   }
 
   const handleViewApplication = (inviteId: string) => {
-    const link = `https://apply.golumino.com/?id=${inviteId}`
+    const link = `https://apply.lumino.io/?id=${inviteId}`
     window.open(link, "_blank", "noopener,noreferrer")
   }
 
@@ -354,7 +354,7 @@ export default function InvitePage() {
     try {
       const inviteId = await generateInviteId(email)
       if (inviteId) {
-        const link = `https://apply.golumino.com/?id=${inviteId}`
+        const link = `https://apply.lumino.io/?id=${inviteId}`
         setGeneratedLink(link)
         toast({
           title: "Success!",

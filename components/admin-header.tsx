@@ -38,7 +38,7 @@ export default function AdminHeader({ isAuthorized }: AdminHeaderProps) {
     ...(isAuthorized
       ? [
           {
-            href: "https://partner.golumino.com/admin",
+            href: "https://partner.lumino.io/admin",
             label: "Partner Application",
             Icon: Handshake,
             active: false,

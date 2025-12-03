@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
     const newInviteId = newApplication.id
     const merchantEmail = newApplication.dba_email
-    const inviteLink = `https://apply.golumino.com/?id=${newInviteId}`
+    const inviteLink = `https://apply.lumino.io/?id=${newInviteId}`
 
     if (merchantEmail && validateEmail(merchantEmail)) {
       await resend.emails.send({

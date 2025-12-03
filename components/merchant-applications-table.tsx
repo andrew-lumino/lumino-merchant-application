@@ -260,7 +260,7 @@ export default function MerchantApplicationsTable({
   const handleCopyLink = (app: Application) => {
     if (!app.id) return
 
-    const link = `https://apply.golumino.com/?id=${app.id}`
+    const link = `https://apply.lumino.io/?id=${app.id}`
     navigator.clipboard
       .writeText(link)
       .then(() => {

@@ -6,7 +6,6 @@ import { ClerkProvider } from "@clerk/nextjs"
 import { currentUser } from "@clerk/nextjs/server"
 import { Toaster } from "@/components/ui/toaster"
 import AdminHeader from "@/components/admin-header"
-import { Analytics } from "@vercel/analytics/next"
 
 const inter = Inter({ subsets: ["latin"] })
 type AuthzResult = { isAuthorized: boolean; email: string | null }
@@ -15,11 +14,11 @@ type AuthzResult = { isAuthorized: boolean; email: string | null }
  * Checks if the current Clerk user is authorized.
  *
  * @param allowedUsers - Optional array of allowed user identifiers.
- *   - If empty: Any @golumino.com email is authorized.
+ *   - If empty: Any @lumino.io email is authorized.
  *   - If populated: Authorizes if user email matches an entry.
  *     Entries can be:
  *       - Full email address (e.g., "other@email.com")
- *       - Local-part only for golumino.com (e.g., "andrew")
+ *       - Local-part only for lumino.io (e.g., "andrew")
  *
  * @returns Object with { isAuthorized: boolean, email: string | null }
  */
@@ -27,23 +26,20 @@ async function authorizeUser(allowedUsers: string[] = []) {
   const user = await currentUser()
   if (!user) return { isAuthorized: false, email: null }
 
-  const email = user.email ||
-    user.emailAddresses?.[0]?.emailAddress ||
-    user.primaryEmailAddressId ||
-    ""
+  const email = user.email || user.emailAddresses?.[0]?.emailAddress || user.primaryEmailAddressId || ""
 
   if (!email) return { isAuthorized: false, email: null }
 
-  // If no specific users provided, allow any @golumino.com email
+  // If no specific users provided, allow any @lumino.io email
   if (allowedUsers.length === 0) {
-    return { isAuthorized: email.endsWith("@golumino.com"), email }
+    return { isAuthorized: email.endsWith("@lumino.io"), email }
   }
 
   const localPart = email.split("@")[0]
 
   const isAuthorized =
     allowedUsers.includes(email) || // Full email match
-    allowedUsers.includes(localPart) // Local-part match for golumino.com
+    allowedUsers.includes(localPart) // Local-part match for lumino.io
 
   return { isAuthorized, email }
 }
@@ -54,7 +50,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Lumino Merchant Application",
     description: "Apply to become a Lumino Merchant and join our ecosystem.",
-    url: "https://apply.golumino.com",
+    url: "https://apply.lumino.io",
     siteName: "Lumino",
     type: "website",
   },
@@ -66,7 +62,7 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
-    generator: 'v0.app'
+  generator: "v0.app",
 }
 
 export default async function RootLayout({
@@ -75,18 +71,11 @@ export default async function RootLayout({
   children: React.ReactNode
 }) {
   const user = await currentUser()
-  const email =
-    user?.email ?? user?.emailAddresses?.[0]?.emailAddress ?? user?.primaryEmailAddressId ?? ""
+  const email = user?.email ?? user?.emailAddresses?.[0]?.emailAddress ?? user?.primaryEmailAddressId ?? ""
 
-  const showHeader = email.endsWith("@golumino.com")
+  const showHeader = email.endsWith("@lumino.io")
 
-  const { isAuthorized } = await authorizeUser([
-    "andrew",
-    "giorgio",
-    "zachry",
-    "priscilla",
-    "wesley"
-  ])
+  const { isAuthorized } = await authorizeUser(["andrew", "giorgio", "zachry", "priscilla", "wesley"])
 
   return (
     <ClerkProvider>

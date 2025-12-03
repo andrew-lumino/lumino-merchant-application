@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "No valid email addresses found" }, { status: 400 })
     }
 
-    const baseUrl = "https://apply.golumino.com"
+    const baseUrl = "https://apply.lumino.io"
     const results = {
       successful: [] as string[],
       failed: [] as { email: string; error: string }[],
@@ -137,10 +137,10 @@ export async function POST(req: Request) {
 async function sendBatchEmails(
   items: Array<{ email: string; inviteLink: string; dbId: string }>,
   results: { successful: string[]; failed: Array<{ email: string; error: string }> },
-  agent_email: string | null
+  agent_email: string | null,
 ) {
   const payload = items.map((it) => ({
-    from: "Lumino <no-reply@golumino.com>",
+    from: "Lumino <no-reply@lumino.io>",
     to: [it.email],
     subject: "You're Invited to Apply for Lumino Merchant Services",
     html: getEmailTemplate(it.inviteLink),
@@ -165,18 +165,15 @@ async function sendBatchEmails(
           .from("merchant_applications")
           .update({ status: "invited" }) // Keep as invited but log the error
           .eq("id", item.dbId)
-        
+
         results.failed.push({ email: item.email, error: errMsg })
         console.warn(`Resend batch item failed (index ${i}) for ${item.email}: ${errMsg}`)
       } else {
         const resendId = data[dataPointer]?.id
         dataPointer++
-        
-        await supabase
-          .from("merchant_applications")
-          .update({ status: "invited" })
-          .eq("id", item.dbId)
-        
+
+        await supabase.from("merchant_applications").update({ status: "invited" }).eq("id", item.dbId)
+
         results.successful.push(item.email)
 
         // Zapier webhook (non-blocking)
@@ -202,17 +199,14 @@ async function sendBatchEmails(
     for (const item of items) {
       try {
         await resend.emails.send({
-          from: "Lumino <no-reply@golumino.com>",
+          from: "Lumino <no-reply@lumino.io>",
           to: [item.email],
           subject: "You're Invited to Apply for Lumino Merchant Services",
           html: getEmailTemplate(item.inviteLink),
         })
 
-        await supabase
-          .from("merchant_applications")
-          .update({ status: "invited" })
-          .eq("id", item.dbId)
-        
+        await supabase.from("merchant_applications").update({ status: "invited" }).eq("id", item.dbId)
+
         results.successful.push(item.email)
 
         // Zapier webhook
@@ -239,15 +233,13 @@ async function sendBatchEmails(
 
 async function sendFailureNotification(
   agent_email: string,
-  results: { failed: Array<{ email: string; error: string }>; successful: string[] }
+  results: { failed: Array<{ email: string; error: string }>; successful: string[] },
 ) {
   try {
-    const failedList = results.failed
-      .map((f) => `• ${f.email}: ${f.error}`)
-      .join("\n")
+    const failedList = results.failed.map((f) => `• ${f.email}: ${f.error}`).join("\n")
 
     await resend.emails.send({
-      from: "Lumino <no-reply@golumino.com>",
+      from: "Lumino <no-reply@lumino.io>",
       to: [agent_email],
       subject: "Merchant Invite Batch - Some Failures Reported",
       html: `
@@ -299,14 +291,14 @@ function getEmailTemplate(inviteLink: string): string {
       
       <p>The application takes approximately 10-15 minutes to complete. Our underwriting team will review your submission and contact you within 24-48 hours.</p>
       
-      <p>If you have any questions, feel free to contact our <a href="mailto:support@golumino.com">merchant team</a>.</p>
+      <p>If you have any questions, feel free to contact our <a href="mailto:support@lumino.io">merchant team</a>.</p>
       
       <p>We look forward to serving your business!</p>
       
       <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #666; font-size: 12px;">
         <p>Lumino Technologies<br>
         4201 Main St Suite 201, Houston, TX 77002<br>
-        1-866-488-4168 | www.golumino.com</p>
+        1-866-488-4168 | www.lumino.io</p>
       </div>
     </div>
   `

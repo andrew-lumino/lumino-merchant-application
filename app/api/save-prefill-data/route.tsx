@@ -282,7 +282,7 @@ export async function POST(request: Request) {
     console.log("✅ Database update successful!")
     console.log("Updated record:", updateResult)
 
-    const inviteLink = `https://apply.golumino.com/?id=${applicationId}`
+    const inviteLink = `https://apply.lumino.io/?id=${applicationId}`
     console.log("🔗 Generated invite link:", inviteLink)
 
     // Handle file uploads to merchant_uploads table
