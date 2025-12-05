@@ -1437,10 +1437,12 @@ export default function MerchantApplicationsTable({
                                             <h4 className="font-medium mb-2">Principal {index + 1}</h4>
                                             <div className="grid grid-cols-2 gap-4 text-sm">
                                               <div>
-                                                <strong>First Name:</strong> {principal.firstName || "N/A"}
+                                                <strong>First Name:</strong>{" "}
+                                                {principal.firstName || principal.first_name || "N/A"}
                                               </div>
                                               <div>
-                                                <strong>Last Name:</strong> {principal.lastName || "N/A"}
+                                                <strong>Last Name:</strong>{" "}
+                                                {principal.lastName || principal.last_name || "N/A"}
                                               </div>
                                               <div>
                                                 <strong>Email:</strong> {principal.email || "N/A"}
@@ -1450,17 +1452,28 @@ export default function MerchantApplicationsTable({
                                               </div>
                                               <div>
                                                 <strong>Equity:</strong>{" "}
-                                                {principal.equity ? `${principal.equity}%` : "N/A"}
+                                                {principal.equity || principal.ownership_percent
+                                                  ? `${principal.equity || principal.ownership_percent}%`
+                                                  : "N/A"}
                                               </div>
                                               <div>
                                                 <strong>Phone:</strong>{" "}
-                                                {principal.phone ? <PhoneNumber value={principal.phone} /> : "N/A"}
+                                                {principal.phone || principal.phone_number ? (
+                                                  <PhoneNumber value={principal.phone || principal.phone_number} />
+                                                ) : (
+                                                  "N/A"
+                                                )}
                                               </div>
                                               <div>
-                                                <strong>Address Line 1:</strong> {principal.addressLine1 || "N/A"}
+                                                <strong>Address Line 1:</strong>{" "}
+                                                {principal.addressLine1 ||
+                                                  principal.address_line_1 ||
+                                                  principal.address ||
+                                                  "N/A"}
                                               </div>
                                               <div>
-                                                <strong>Address Line 2:</strong> {principal.addressLine2 || "N/A"}
+                                                <strong>Address Line 2:</strong>{" "}
+                                                {principal.addressLine2 || principal.address_line_2 || "N/A"}
                                               </div>
                                               <div>
                                                 <strong>City:</strong> {principal.city || "N/A"}
@@ -1469,38 +1482,67 @@ export default function MerchantApplicationsTable({
                                                 <strong>State:</strong> {principal.state || "N/A"}
                                               </div>
                                               <div>
-                                                <strong>ZIP:</strong> {principal.zip || "N/A"}
+                                                <strong>ZIP:</strong> {principal.zip || principal.zip_code || "N/A"}
                                               </div>
                                               <div>
                                                 <strong>SSN:</strong>
-                                                {principal.ssn ? (
-                                                  <SensitiveField value={principal.ssn} maskPattern="ssn" />
+                                                {principal.ssn || principal.social_security ? (
+                                                  <SensitiveField
+                                                    value={principal.ssn || principal.social_security}
+                                                    maskPattern="ssn"
+                                                  />
                                                 ) : (
                                                   " N/A"
                                                 )}
                                               </div>
                                               <div>
-                                                <strong>Date of Birth:</strong> {principal.dob || "N/A"}
+                                                <strong>Date of Birth:</strong>{" "}
+                                                {principal.dob || principal.date_of_birth || "N/A"}
                                               </div>
                                               <div>
-                                                <strong>ID Type:</strong> {principal.idType || "N/A"}
+                                                <strong>ID Type:</strong>{" "}
+                                                {principal.idType ||
+                                                  principal.gov_id_type ||
+                                                  principal.id_type ||
+                                                  "N/A"}
                                               </div>
                                               <div>
                                                 <strong>ID Number:</strong>{" "}
-                                                {principal.idNumber ? (
-                                                  <SensitiveField value={principal.idNumber} maskPattern="ssn" />
+                                                {principal.idNumber ||
+                                                principal.gov_id_number ||
+                                                principal.id_number ? (
+                                                  <SensitiveField
+                                                    value={
+                                                      principal.idNumber ||
+                                                      principal.gov_id_number ||
+                                                      principal.id_number
+                                                    }
+                                                    maskPattern="ssn"
+                                                  />
                                                 ) : (
                                                   "N/A"
                                                 )}
                                               </div>
                                               <div>
-                                                <strong>ID Issue State:</strong> {principal.idIssueState || "N/A"}
+                                                <strong>ID Issue State:</strong>{" "}
+                                                {principal.idIssueState ||
+                                                  principal.gov_id_issue_state ||
+                                                  principal.id_issue_state ||
+                                                  "N/A"}
                                               </div>
                                               <div>
-                                                <strong>ID Issue Date:</strong> {principal.idIssueDate || "N/A"}
+                                                <strong>ID Issue Date:</strong>{" "}
+                                                {principal.idIssueDate ||
+                                                  principal.gov_id_issue_date ||
+                                                  principal.id_issue_date ||
+                                                  "N/A"}
                                               </div>
                                               <div>
-                                                <strong>ID Expiry Date:</strong> {principal.idExpiryDate || "N/A"}
+                                                <strong>ID Expiry Date:</strong>{" "}
+                                                {principal.idExpiryDate ||
+                                                  principal.gov_id_expiry_date ||
+                                                  principal.id_expiry_date ||
+                                                  "N/A"}
                                               </div>
                                             </div>
                                           </div>
