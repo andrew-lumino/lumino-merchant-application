@@ -81,7 +81,7 @@ export default async function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body className={inter.className}>
-          {email && <AdminHeader isAuthorized={isAuthorized} />}
+          {showHeader && <AdminHeader isAuthorized={isAuthorized} />}
           {children}
           <Toaster />
         </body>
