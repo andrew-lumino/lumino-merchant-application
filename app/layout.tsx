@@ -32,7 +32,7 @@ async function authorizeUser(allowedUsers: string[] = []) {
 
   // If no specific users provided, allow any @lumino.io email
   if (allowedUsers.length === 0) {
-    return { isAuthorized: email.endsWith("@lumino.io"), email }
+    return { isAuthorized: email.endsWith("@golumino.com"), email }
   }
 
   const localPart = email.split("@")[0]
@@ -81,7 +81,7 @@ export default async function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body className={inter.className}>
-          {showHeader && <AdminHeader isAuthorized={isAuthorized} />}
+          {email && <AdminHeader isAuthorized={isAuthorized} />}
           {children}
           <Toaster />
         </body>

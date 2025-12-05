@@ -27,7 +27,6 @@ export default async function AdminLayout({
 
   return (
     <>
-      <AdminHeader isAuthorized={isAuthorized} />
       {children}
     </>
   )
