@@ -73,7 +73,7 @@ export default async function RootLayout({
   const user = await currentUser()
   const email = user?.email ?? user?.emailAddresses?.[0]?.emailAddress ?? user?.primaryEmailAddressId ?? ""
 
-  const showHeader = email.endsWith("@lumino.io")
+  const showHeader = email.endsWith("@golumino.com")
 
   const { isAuthorized } = await authorizeUser(["andrew", "giorgio", "zachry", "priscilla", "wesley"])
 
