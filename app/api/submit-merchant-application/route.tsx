@@ -349,6 +349,9 @@ export async function POST(request: Request) {
     const updateData = {
       status: "submitted",
 
+      agent_email: data.agent_email || data.agentEmail || null,
+      agent_name: data.agent_name || data.agentName || null,
+
       // Merchant Information
       dba_name: data.dbaName || null,
       dba_email: data.dbaEmail || null,
@@ -453,8 +456,8 @@ export async function POST(request: Request) {
       const { data: newApp, error: insertError } = await supabase
         .from("merchant_applications")
         .insert({
-          agent_email: data.agentEmail || null,
-          agent_name: data.agentName || null,
+          agent_email: data.agent_email || data.agentEmail || null,
+          agent_name: data.agent_name || data.agentName || null,
           ...updateData,
         })
         .select()
