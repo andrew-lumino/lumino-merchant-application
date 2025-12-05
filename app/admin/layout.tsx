@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { currentUser } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
+import AdminHeader from "@/components/admin-header"
 
 export default async function AdminLayout({
   children,
@@ -15,8 +16,7 @@ export default async function AdminLayout({
     return null
   }
 
-  const email =
-    user?.email ?? user?.emailAddresses?.[0]?.emailAddress ?? user?.primaryEmailAddressId ?? ""
+  const email = user?.email ?? user?.emailAddresses?.[0]?.emailAddress ?? user?.primaryEmailAddressId ?? ""
 
   const isAuthorized = email.endsWith("@golumino.com")
 
@@ -25,5 +25,10 @@ export default async function AdminLayout({
     return null // Just in case
   }
 
-  return <>{children}</>
+  return (
+    <>
+      <AdminHeader isAuthorized={isAuthorized} />
+      {children}
+    </>
+  )
 }
