@@ -665,9 +665,9 @@ export default function MerchantApplicationWizard() {
                 ...camelCaseData,
                 terminals: camelCaseData.terminals || [],
                 // Pre-fill new fields from API data if available
-                acceptAmex: camelCaseData.acceptAmex ?? "no",
-                acceptDebit: camelCaseData.acceptDebit ?? "yes",
-                acceptEbt: camelCaseData.acceptEbt ?? "no",
+                acceptAmex: camelCaseData.acceptAmex === true ? "yes" : "no",
+                acceptDebit: camelCaseData.acceptDebit === true ? "yes" : "no", 
+                acceptEbt: camelCaseData.acceptEbt === true ? "yes" : "no",
                 rateProgram: camelCaseData.rateProgram ?? "",
                 rateProgramValue: camelCaseData.rateProgramValue ?? "",
               }
@@ -2299,8 +2299,9 @@ export default function MerchantApplicationWizard() {
                     </div>
                     {(uploadState.uploadStatus === "success" ||
                       uploadState.uploadStatus === "error" ||
-                      uploadState.uploadStatus === "warning") && (
-                      <Button type="button" variant="ghost" size="sm" onClick={resetUpload} title="Remove file">
+                      uploadState.uploadStatus === "warning" ||
+                      uploadState.uploadStatus === "uploading") && (
+                      <Button type="button" variant="ghost" size="sm" onClick={resetUpload} title={uploadState.uploadStatus === "uploading" ? "Cancel upload" : "Remove file"}>
                         <X className="w-4 h-4" />
                       </Button>
                     )}
