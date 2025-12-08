@@ -308,6 +308,7 @@ export default function MerchantApplicationWizard() {
   const [agentName, setAgentName] = useState("")
   const [principalsLoadedFromDb, setPrincipalsLoadedFromDb] = useState(false)
   const [uploadsLoadedFromDb, setUploadsLoadedFromDb] = useState(false)
+  const [formDataLoadedFromDb, setFormDataLoadedFromDb] = useState(false)
 
   const [formData, setFormData] = useState<FormData>({
     agentEmail: "",
@@ -500,7 +501,8 @@ export default function MerchantApplicationWizard() {
       }
 
       // Restore data
-      if (parsed.formData) setFormData((prev) => ({ ...prev, ...parsed.formData }))
+      // if (parsed.formData) setFormData((prev) => ({ ...prev, ...parsed.formData }))
+      if (parsed.formData && !formDataLoadedFromDb) setFormData((prev) => ({ ...prev, ...parsed.formData }))
       if (parsed.principals && !principalsLoadedFromDb) setPrincipals(parsed.principals)
       // if (parsed.uploads) setUploads(parsed.uploads) // Old upload format
       // if (parsed.uploadedFiles) setUploadedFiles(parsed.uploadedFiles) // New upload format
@@ -675,6 +677,7 @@ export default function MerchantApplicationWizard() {
                 return acc
               }, {} as any)
 
+              setFormDataLoadedFromDb(true)
               setFormData((prev) => ({ ...prev, ...cleanedData }))
 
               if (camelCaseData.principals) {
