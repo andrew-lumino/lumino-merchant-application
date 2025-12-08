@@ -1068,33 +1068,36 @@ export default function MerchantApplicationWizard() {
         data: { publicUrl },
       } = supabase.storage.from("merchant-uploads").getPublicUrl(fileName)
 
-      // Generate preview for images
-      let preview = null
+      // Generate preview for images (async, will update state when ready)
       if (file.type.startsWith("image/")) {
-        try {
-          const reader = new FileReader()
-          reader.onloadend = () => {
-            setUploads((prev) => ({
-              ...prev,
-              [key]: {
-                ...prev[key],
-                preview: reader.result as string,
-              },
-            }))
-          }
-          preview = await new Promise((resolve) => reader.readAsDataURL(file))
-        } catch (readError) {
-          console.error("Error reading file for preview:", readError)
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const preview = reader.result as string
+          setUploads((prev) => ({
+            ...prev,
+            [key]: {
+              ...prev[key],
+              preview,
+            },
+          }))
+          setUploadedFiles((prev) => ({
+            ...prev,
+            [key]: {
+              ...prev[key],
+              preview,
+            },
+          }))
         }
+        reader.readAsDataURL(file)
       }
 
-      // Update with success
+      // Update with success immediately (preview will be added async)
       setUploads((prev) => ({
         ...prev,
         [key]: {
           ...prev[key],
           file,
-          preview,
+          preview: null, // Will be updated by reader.onloadend
           uploadType: "file",
           uploadStatus: "success",
           uploadedUrl: publicUrl,
@@ -1110,7 +1113,7 @@ export default function MerchantApplicationWizard() {
           url: publicUrl,
           name: file.name,
           uploadType: "file",
-          preview: preview, // Include preview if available
+          preview: null, // Will be updated by reader.onloadend
           uploadStatus: "success",
           uploadedUrl: publicUrl,
           errorMessage: undefined,
@@ -1560,7 +1563,7 @@ export default function MerchantApplicationWizard() {
 
         // Allow 99-101% (within 1% tolerance)
         if (Math.abs(totalPct - 100) > 1 && totalPct !== 0) {
-          newErrors.pctCardSwiped = `Transaction percentages must total 100% (currently ${totalPct}%)`
+          newErrors.pctCardSwiped = `Transaction percentages must total approximately 100% (currently ${totalPct}%)`
         }
         break
 
