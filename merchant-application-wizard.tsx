@@ -307,6 +307,7 @@ export default function MerchantApplicationWizard() {
   const [isSubmittingAgentAction, setIsSubmittingAgentAction] = useState(false)
   const [agentName, setAgentName] = useState("")
   const [principalsLoadedFromDb, setPrincipalsLoadedFromDb] = useState(false)
+  const [uploadsLoadedFromDb, setUploadsLoadedFromDb] = useState(false)
 
   const [formData, setFormData] = useState<FormData>({
     agentEmail: "",
@@ -501,8 +502,10 @@ export default function MerchantApplicationWizard() {
       // Restore data
       if (parsed.formData) setFormData((prev) => ({ ...prev, ...parsed.formData }))
       if (parsed.principals && !principalsLoadedFromDb) setPrincipals(parsed.principals)
-      if (parsed.uploads) setUploads(parsed.uploads) // Old upload format
-      if (parsed.uploadedFiles) setUploadedFiles(parsed.uploadedFiles) // New upload format
+      // if (parsed.uploads) setUploads(parsed.uploads) // Old upload format
+      // if (parsed.uploadedFiles) setUploadedFiles(parsed.uploadedFiles) // New upload format
+      if (parsed.uploads && !uploadsLoadedFromDb) setUploads(parsed.uploads)
+      if (parsed.uploadedFiles && !uploadsLoadedFromDb) setUploadedFiles(parsed.uploadedFiles)
       if (parsed.currentStep !== undefined) setCurrentStep(parsed.currentStep)
 
       console.log("[v0] Restored draft from localStorage")
@@ -700,6 +703,7 @@ export default function MerchantApplicationWizard() {
                   }
                 })
                 if (Object.keys(loadedUploads).length > 0) {
+                  setUploadsLoadedFromDb(true)
                   setUploadedFiles(loadedUploads)
                   console.log("[v0] Restored uploads:", Object.keys(loadedUploads))
                 }
@@ -1985,11 +1989,7 @@ export default function MerchantApplicationWizard() {
 
   const renderUnauthorizedAccess = () => {
     const subject = "Request for Merchant Application Invitation"
-    const body = `Hello Lumino Support Team,
-
-I would like to request a merchant application invitation to be sent to this email so I can complete my merchant onboarding.
-
-Thank you!`
+    const body = `Hello Lumino Support Team, I would like to request a merchant application invitation to be sent to this email so I can complete my merchant onboarding. Thank you!`
 
     const mailtoLink = `mailto:support@golumino.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 
