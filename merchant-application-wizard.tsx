@@ -1679,6 +1679,12 @@ export default function MerchantApplicationWizard() {
       return
     }
     console.log("Starting form submission...")
+    console.log("[v0] PRINCIPALS STATE AT SUBMIT TIME:", JSON.stringify(principals, null, 2))
+    console.log("[v0] Number of principals:", principals.length)
+    if (principals.length > 0) {
+      console.log("[v0] First principal firstName:", principals[0].firstName)
+      console.log("[v0] First principal lastName:", principals[0].lastName)
+    }
     setIsSubmitting(true)
 
     try {
