@@ -306,6 +306,7 @@ export default function MerchantApplicationWizard() {
   const [generatedLink, setGeneratedLink] = useState("")
   const [isSubmittingAgentAction, setIsSubmittingAgentAction] = useState(false)
   const [agentName, setAgentName] = useState("")
+  const [principalsLoadedFromDb, setPrincipalsLoadedFromDb] = useState(false)
 
   const [formData, setFormData] = useState<FormData>({
     agentEmail: "",
@@ -499,7 +500,7 @@ export default function MerchantApplicationWizard() {
 
       // Restore data
       if (parsed.formData) setFormData((prev) => ({ ...prev, ...parsed.formData }))
-      if (parsed.principals) setPrincipals(parsed.principals)
+      if (parsed.principals && !principalsLoadedFromDb) setPrincipals(parsed.principals)
       if (parsed.uploads) setUploads(parsed.uploads) // Old upload format
       if (parsed.uploadedFiles) setUploadedFiles(parsed.uploadedFiles) // New upload format
       if (parsed.currentStep !== undefined) setCurrentStep(parsed.currentStep)
@@ -680,6 +681,7 @@ export default function MerchantApplicationWizard() {
                     return acc
                   }, {} as any),
                 )
+                setPrincipalsLoadedFromDb(true)
                 setPrincipals(cleanedPrincipals)
               }
               setMerchantEmail(appData.dba_email || "")
@@ -1679,12 +1681,6 @@ export default function MerchantApplicationWizard() {
       return
     }
     console.log("Starting form submission...")
-    console.log("[v0] PRINCIPALS STATE AT SUBMIT TIME:", JSON.stringify(principals, null, 2))
-    console.log("[v0] Number of principals:", principals.length)
-    if (principals.length > 0) {
-      console.log("[v0] First principal firstName:", principals[0].firstName)
-      console.log("[v0] First principal lastName:", principals[0].lastName)
-    }
     setIsSubmitting(true)
 
     try {

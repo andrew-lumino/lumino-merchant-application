@@ -324,19 +324,6 @@ export async function POST(request: Request) {
     console.log("Application ID from data:", data.id)
     console.log("Uploads from data:", data.uploads)
 
-    console.log("[v0] === PRINCIPALS DEBUG IN SUBMIT API ===")
-    console.log("[v0] data.principals type:", typeof data.principals)
-    console.log("[v0] data.principals isArray:", Array.isArray(data.principals))
-    console.log("[v0] data.principals length:", data.principals?.length)
-    if (data.principals && data.principals.length > 0) {
-      console.log("[v0] First principal FULL DATA:", JSON.stringify(data.principals[0]))
-      console.log("[v0] First principal firstName:", data.principals[0].firstName)
-      console.log("[v0] First principal lastName:", data.principals[0].lastName)
-    } else {
-      console.log("[v0] NO PRINCIPALS IN DATA - this is the bug!")
-    }
-    console.log("[v0] === END PRINCIPALS DEBUG ===")
-
     // FIXED: Process uploaded files from the JSON data structure
     const uploadedFiles: Record<string, string> = {}
 
@@ -450,11 +437,6 @@ export async function POST(request: Request) {
 
       updated_at: new Date().toISOString(),
     }
-
-    console.log("[v0] === PRINCIPALS IN UPDATE DATA ===")
-    console.log("[v0] updateData.principals:", JSON.stringify(updateData.principals))
-    console.log("[v0] updateData.principals length:", updateData.principals?.length)
-    console.log("[v0] === END UPDATE DATA DEBUG ===")
 
     if (data.id) {
       // Update existing application
