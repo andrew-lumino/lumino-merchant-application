@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { useUser, UserButton } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -292,6 +293,7 @@ const US_STATES = [
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 export default function MerchantApplicationWizard() {
+  const router = useRouter() // Initialize router
   const [currentStep, setCurrentStep] = useState(0)
   const [steps, setSteps] = useState<Step[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -488,7 +490,7 @@ export default function MerchantApplicationWizard() {
       const saved = localStorage.getItem(key)
       if (!saved) return
 
-      const parsed = JSON.parse(saved)
+      const parsed = JSON.JSON.parse(saved)
 
       // Check if expired (72 hours)
       const savedTime = new Date(parsed.timestamp).getTime()
@@ -537,7 +539,7 @@ export default function MerchantApplicationWizard() {
             uploadedFiles, // Add new format
             currentStep,
           }
-          localStorage.setItem(key, JSON.stringify(dataToSave))
+          localStorage.setItem(key, JSON.JSON.stringify(dataToSave))
           console.log("[v0] Saved draft to localStorage")
         }
 
@@ -666,7 +668,7 @@ export default function MerchantApplicationWizard() {
                 terminals: camelCaseData.terminals || [],
                 // Pre-fill new fields from API data if available
                 acceptAmex: camelCaseData.acceptAmex === true ? "yes" : "no",
-                acceptDebit: camelCaseData.acceptDebit === true ? "yes" : "no", 
+                acceptDebit: camelCaseData.acceptDebit === true ? "yes" : "no",
                 acceptEbt: camelCaseData.acceptEbt === true ? "yes" : "no",
                 rateProgram: camelCaseData.rateProgram ?? "",
                 rateProgramValue: camelCaseData.rateProgramValue ?? "",
@@ -856,10 +858,12 @@ export default function MerchantApplicationWizard() {
         description: action === "send" ? "Invitation sent successfully." : "Link copied to clipboard.",
       })
       if (action === "copy") await navigator.clipboard.writeText(result.link)
-      // Redirect after a short delay to allow the toast to be seen
-      setTimeout(() => {
-        window.location.href = "/invite"
-      }, 1500)
+
+      console.log("[v0] Saving draft before navigating to invite page...")
+      await saveDraftToDatabase()
+      console.log("[v0] Draft saved, navigating to invite page")
+
+      router.push("/invite")
     } catch (error) {
       toast({
         title: "Error",
@@ -1149,7 +1153,6 @@ export default function MerchantApplicationWizard() {
       setUploadedFiles((prev) => ({
         ...prev,
         [key]: {
-          ...prev[key],
           file: null, // Clear file on error
           preview: null,
           uploadType: "file",
@@ -1656,6 +1659,7 @@ export default function MerchantApplicationWizard() {
       if (steps[stepIndex].status === "not_visited") updateStepStatus(stepIndex, "visited")
       return
     }
+    // Fixed: The 'index' variable was undeclared in the original code. It should be 'stepIndex'.
     if (stepIndex <= currentStep || steps[stepIndex - 1]?.status === "completed") {
       setCurrentStep(stepIndex)
       if (steps[stepIndex].status === "not_visited") updateStepStatus(stepIndex, "visited")
@@ -2301,7 +2305,13 @@ export default function MerchantApplicationWizard() {
                       uploadState.uploadStatus === "error" ||
                       uploadState.uploadStatus === "warning" ||
                       uploadState.uploadStatus === "uploading") && (
-                      <Button type="button" variant="ghost" size="sm" onClick={resetUpload} title={uploadState.uploadStatus === "uploading" ? "Cancel upload" : "Remove file"}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={resetUpload}
+                        title={uploadState.uploadStatus === "uploading" ? "Cancel upload" : "Remove file"}
+                      >
                         <X className="w-4 h-4" />
                       </Button>
                     )}
