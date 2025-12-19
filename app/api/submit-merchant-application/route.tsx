@@ -135,10 +135,13 @@ function buildZapAirtableFields(params: {
     .join(", ")
 
   // Principals summary (plus optional breakout for the first two)
+  // Handle both camelCase and snake_case field names
   const principals = data.principals ?? []
   const principalsSummary = principals
     .map((p, i) => {
-      const name = [p.firstName, p.lastName].filter(Boolean).join(" ").trim()
+      const firstName = p.firstName || p.first_name || ""
+      const lastName = p.lastName || p.last_name || ""
+      const name = [firstName, lastName].filter(Boolean).join(" ").trim()
       const bits: string[] = []
       if (name) bits.push(`${i + 1}. ${name}`)
       if (p.position) bits.push(`Position: ${p.position}`)
@@ -151,7 +154,10 @@ function buildZapAirtableFields(params: {
   const principalField = (idx: number, key: "Name" | "Email" | "Position" | "Equity") => {
     const p = principals[idx]
     if (!p) return ""
-    if (key === "Name") return [p.firstName, p.lastName].filter(Boolean).join(" ").trim()
+    // Handle both camelCase and snake_case field names
+    const firstName = p.firstName || p.first_name || ""
+    const lastName = p.lastName || p.last_name || ""
+    if (key === "Name") return [firstName, lastName].filter(Boolean).join(" ").trim()
     if (key === "Email") return p.email ?? ""
     if (key === "Position") return p.position ?? ""
     if (key === "Equity") return p.equity != null ? `${p.equity}` : ""
